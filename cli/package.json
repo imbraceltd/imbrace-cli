@@ -1,0 +1,47 @@
+{
+  "name": "@imbrace/cli",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "imbrace": "./bin/run.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/commands",
+    "postpack": "rm -f oclif.manifest.json",
+    "prepack": "oclif manifest"
+  },
+  "dependencies": {
+    "@imbrace/sdk": "latest",
+    "@inquirer/prompts": "^7.10.1",
+    "@oclif/core": "^4.2.0",
+    "@oclif/plugin-autocomplete": "^3.2.0",
+    "@oclif/plugin-help": "^6.2.0",
+    "conf": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "oclif": "^4.17.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "oclif": {
+    "bin": "imbrace",
+    "dirname": "imbrace",
+    "commands": "./dist/commands",
+    "topicSeparator": " ",
+    "plugins": [
+      "@oclif/plugin-help",
+      "@oclif/plugin-autocomplete"
+    ],
+    "topics": {
+      "data-board": {
+        "description": "Manage data boards — run `imbrace data-board --help` to see all commands"
+      }
+    }
+  },
+  "files": [
+    "/bin",
+    "/dist"
+  ]
+}

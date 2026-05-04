@@ -1,0 +1,16 @@
+{
+  "name": "@imbrace/api",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "@imbrace/sdk": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  }
+}

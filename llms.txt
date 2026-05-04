@@ -1,0 +1,78 @@
+# Imbrace CLI
+
+> Imbrace CLI allows coding agents and developers to interact with the Imbrace platform via command line. Imbrace is a CRM platform supporting AI chat assistants, data boards (CRM pipelines), workflows, and more.
+
+Things to remember when using Imbrace CLI:
+
+- Always run `imbrace login` first. Credentials are saved to `~/.config/imbrace/config.json` and reused automatically.
+- If a command returns a 401 error, run `imbrace login` again to refresh credentials.
+- All commands support `--json` flag for machine-readable output — always use `--json` when scripting or using a coding agent.
+- Run `imbrace data-board list --json` first to get Board IDs (`brd_...`) before using other data-board commands.
+- Board items use the format `{ fields: [{ board_field_id, value }] }` — field IDs are fetched automatically in interactive mode.
+- Field types available: `ShortText`, `LongText`, `Number`, `Dropdown`, `Date`, `Checkbox`.
+
+## Authentication
+
+- `imbrace login --api-key api_xxx...` — Login with API key (recommended for CI/CD and coding agents)
+- `imbrace login --email user@example.com --password mypass` — Login with email and password
+- `imbrace logout` — Clear saved credentials
+- `imbrace whoami --json` — Verify current authentication status
+
+## Data Board Commands
+
+- `imbrace data-board list --json` — List all boards and their IDs (`brd_...`)
+- `imbrace data-board create --name "Sales Pipeline" --json` — Create a new board
+- `imbrace data-board create-field <boardId> --name "Company" --type ShortText --json` — Add a field to a board
+- `imbrace data-board create-item <boardId> --fields '[{"board_field_id":"<id>","value":"Acme"}]' --json` — Create a record
+- `imbrace data-board list-items --board-id <id> --limit 20 --skip 0 --json` — List records with pagination
+- `imbrace data-board list-items --board-id <id> --q "Acme" --json` — Full-text search records
+- `imbrace data-board update-item <boardId> <itemId> --data '[{"key":"<fieldId>","value":"New"}]' --json` — Update a record
+- `imbrace data-board delete-item <boardId> <itemId> --yes --json` — Delete a record
+- `imbrace data-board export-csv --board-id <id> --out ./board.csv` — Export board to CSV file
+
+## Setup
+
+```bash
+# 1. Start the API
+cd api && bun install && bun run dev
+
+# 2. Install the CLI
+cd cli && npm install && npm run build && npm link
+
+# 3. Login
+imbrace login --api-key api_xxx...
+
+# 4. Verify
+imbrace whoami --json
+```
+
+## Quick Start for Coding Agents
+
+```bash
+# Get available boards
+imbrace data-board list --json
+
+# Create a board
+imbrace data-board create --name "Leads" --json
+
+# Add a field
+imbrace data-board create-field <boardId> --name "Company" --type ShortText --json
+
+# Add a record
+imbrace data-board create-item <boardId> --fields '[{"board_field_id":"<fieldId>","value":"Acme Corp"}]' --json
+
+# Search records
+imbrace data-board list-items --board-id <boardId> --q "Acme" --json
+
+# Export to CSV
+imbrace data-board export-csv --board-id <boardId> --out ./leads.csv
+```
+
+## Adding a New Service
+
+To add a new service (e.g. `workflow`):
+
+1. Create route in `api/src/routes/workflow.ts`
+2. Mount in `api/src/index.ts` with `authMiddleware`
+3. Create CLI commands in `cli/src/commands/workflow/`
+4. Add topic in `cli/package.json` under `oclif.topics`
