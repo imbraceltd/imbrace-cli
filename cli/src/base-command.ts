@@ -1,9 +1,14 @@
-import { Command } from "@oclif/core";
+import { Command, Flags } from "@oclif/core";
 import { select, input, password } from "@inquirer/prompts";
 import { getCredential, saveCredential, config } from "./config.js";
 import { apiRequest } from "./http.js";
 
 export abstract class BaseCommand extends Command {
+  // Enable -h as alias for --help on every command (helps coding agents discover usage)
+  static baseFlags = {
+    help: Flags.help({ char: "h", description: "Show help for the command" }),
+  };
+
   async init() {
     await super.init();
     await this.ensureLoggedIn();

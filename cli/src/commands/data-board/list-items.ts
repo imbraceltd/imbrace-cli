@@ -23,10 +23,10 @@ export default class DataBoardListItems extends BaseCommand {
   async run() {
     const { flags } = await this.parse(DataBoardListItems);
 
-    const boardId = flags["board-id"] ?? await input({ message: "Board ID (brd_...):" });
-    const q = flags.q ?? await input({ message: "Search query (press Enter to list all):", default: "" });
-    const limit = flags.limit ?? Number(await input({ message: "Limit (press Enter for 20):", default: "20" }));
-    const skip = flags.skip ?? (q ? 0 : Number(await input({ message: "Skip (press Enter for 0):", default: "0" })));
+    const boardId = flags["board-id"] ?? (flags.json ? this.error("--board-id is required with --json") : await input({ message: "Board ID (brd_...):" }));
+    const q = flags.q ?? (flags.json ? "" : await input({ message: "Search query (press Enter to list all):", default: "" }));
+    const limit = flags.limit ?? (flags.json ? 20 : Number(await input({ message: "Limit (press Enter for 20):", default: "20" })));
+    const skip = flags.skip ?? (flags.json || q ? 0 : Number(await input({ message: "Skip (press Enter for 0):", default: "0" })));
 
     const params = new URLSearchParams();
     if (q) params.set("q", q);

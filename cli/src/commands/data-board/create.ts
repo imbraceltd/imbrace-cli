@@ -23,16 +23,18 @@ export default class DataBoardCreate extends BaseCommand {
 
     const body: Record<string, any> = { name };
 
-    this.log("\n  ℹ Board body is freestyle — you can add any field (e.g. description, email, type, owner...)\n");
+    if (!flags.json) {
+      this.log("\n  ℹ Board body is freestyle — you can add any field (e.g. description, email, type, owner...)\n");
 
-    while (true) {
-      const addMore = await confirm({ message: "Add another field?", default: true });
-      if (!addMore) break;
+      while (true) {
+        const addMore = await confirm({ message: "Add another field?", default: true });
+        if (!addMore) break;
 
-      const fieldName = await input({ message: "Field name:" });
-      const fieldValue = await input({ message: "Field value:" });
+        const fieldName = await input({ message: "Field name:" });
+        const fieldValue = await input({ message: "Field value:" });
 
-      body[fieldName] = fieldValue;
+        body[fieldName] = fieldValue;
+      }
     }
 
     try {

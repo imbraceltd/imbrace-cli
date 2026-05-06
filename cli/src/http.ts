@@ -1,8 +1,8 @@
 import { getCredential, getApiUrl } from "./config.js";
 
 /**
- * HTTP client gọi Hono API
- * Tự động attach Bearer token từ config
+ * HTTP client for the local Hono API server
+ * Automatically attaches the Bearer token from config
  */
 export async function apiRequest<T = any>(
   path: string,
