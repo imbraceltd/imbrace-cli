@@ -1,0 +1,411 @@
+import { Hono } from "hono";
+import { ImbraceClient } from "@imbrace/sdk";
+
+type Variables = { imbraceClient: ImbraceClient; credential: string };
+
+const workflowRoutes = new Hono<{ Variables: Variables }>();
+
+const GW = "https://app-gatewayv2.imbrace.co";
+
+// Resolve a projectId by reusing the project of any existing flow.
+async function resolveProjectId(client: ImbraceClient): Promise<string> {
+  const flows = await client.activepieces.listFlows();
+  const first = (flows as any)?.data?.[0];
+  if (!first?.projectId) {
+    throw new Error(
+      "Cannot resolve projectId — no existing flows to derive from. " +
+      "Create your first flow via the UI (cloud.imbrace.co/workflow-v2) once.",
+    );
+  }
+  return first.projectId;
+}
+
+// Normalize piece name: "slack" → "@activepieces/piece-slack"
+function normalizePieceName(input: string): string {
+  if (input.startsWith("@activepieces/")) return input;
+  return `@activepieces/piece-${input.toLowerCase()}`;
+}
+
+// Fetch piece version + auth shape from public piece registry.
+// Backend rejects ops without correct pieceVersion + propertySettings.
+async function fetchPieceMeta(pieceName: string, credential: string): Promise<{ version: string }> {
+  const authHeader = credential.startsWith("api_")
+    ? { "x-api-key": credential }
+    : { authorization: `Bearer ${credential}` };
+  const res = await fetch(`${GW}/activepieces/v1/pieces/${pieceName}`, { headers: authHeader as any });
+  if (!res.ok) throw new Error(`Cannot fetch piece "${pieceName}" — HTTP ${res.status}`);
+  const data = await res.json() as any;
+  return { version: data.version };
+}
+
+// Build propertySettings { fieldA: {type:"MANUAL"}, ... } from input object keys.
+function buildPropertySettings(input: Record<string, any>): Record<string, any> {
+  const ps: Record<string, any> = {};
+  for (const k of Object.keys(input || {})) {
+    // authFields convention: object → use schema:{}, scalars → simple MANUAL
+    ps[k] = (k === "authFields" && typeof input[k] === "object")
+      ? { type: "MANUAL", schema: {} }
+      : { type: "MANUAL" };
+  }
+  return ps;
+}
+
+// Walk the trigger.nextAction chain into a flat array of nodes.
+function flattenNodes(trigger: any): any[] {
+  const nodes: any[] = [];
+  let cur = trigger;
+  while (cur) {
+    nodes.push({
+      name: cur.name,
+      type: cur.type,
+      displayName: cur.displayName,
+      pieceName: cur.settings?.pieceName,
+      actionName: cur.settings?.actionName,
+      triggerName: cur.settings?.triggerName,
+      input: cur.settings?.input,
+      valid: cur.valid,
+    });
+    cur = cur.nextAction;
+  }
+  return nodes;
+}
+
+// Generate next available step_N name given existing nodes.
+function nextStepName(trigger: any): string {
+  const nodes = flattenNodes(trigger);
+  const used = new Set(nodes.map((n) => n.name));
+  let i = 1;
+  while (used.has(`step_${i}`)) i++;
+  return `step_${i}`;
+}
+
+// GET /workflow/runs — must be before /:id so "runs" isn't matched as an ID
+workflowRoutes.get("/runs", async (c) => {
+  const client = c.get("imbraceClient");
+  const limit = Number(c.req.query("limit") || 10);
+  try {
+    const res = await client.activepieces.listRuns({ limit } as any);
+    const data = (res as any)?.data ?? [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/runs/:runId
+workflowRoutes.get("/runs/:runId", async (c) => {
+  const client = c.get("imbraceClient");
+  const runId = c.req.param("runId");
+  try {
+    const data = await client.activepieces.getRun(runId);
+    return c.json({ ok: true, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/list
+workflowRoutes.get("/list", async (c) => {
+  const client = c.get("imbraceClient");
+  try {
+    const res = await client.activepieces.listFlows();
+    const data = (res as any)?.data ?? [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/:id
+workflowRoutes.get("/:id", async (c) => {
+  const client = c.get("imbraceClient");
+  const id = c.req.param("id");
+  try {
+    const data = await client.activepieces.getFlow(id);
+    return c.json({ ok: true, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/create
+// Body: { name: string, projectId?: string }
+workflowRoutes.post("/create", async (c) => {
+  const client = c.get("imbraceClient");
+  const body = await c.req.json();
+  if (!body.name) return c.json({ ok: false, message: "name is required" }, 400);
+
+  try {
+    const projectId = body.projectId || (await resolveProjectId(client));
+    const data = await client.activepieces.createFlow({
+      displayName: body.name,
+      projectId,
+    });
+    return c.json({ ok: true, message: `Workflow "${body.name}" created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// DELETE /workflow/:id
+workflowRoutes.delete("/:id", async (c) => {
+  const client = c.get("imbraceClient");
+  const id = c.req.param("id");
+  try {
+    await client.activepieces.deleteFlow(id);
+    return c.json({ ok: true, message: "Workflow deleted" });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
+// PIECES — discover available integrations
+// ───────────────────────────────────────────────
+
+// GET /workflow/piece/list?search=slack
+workflowRoutes.get("/piece/list", async (c) => {
+  const client = c.get("imbraceClient");
+  const search = c.req.query("search");
+  try {
+    const res = await client.activepieces.listPieces();
+    let arr = (Array.isArray(res) ? res : (res as any)?.data) || [];
+    if (search) {
+      const q = search.toLowerCase();
+      arr = arr.filter((p: any) =>
+        p.name?.toLowerCase().includes(q) ||
+        p.displayName?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q)
+      );
+    }
+    const data = arr.map((p: any) => ({
+      name: p.name,
+      displayName: p.displayName,
+      description: p.description,
+      categories: p.categories,
+      actions: p.actions,
+      triggers: p.triggers,
+      version: p.version,
+    }));
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/piece/:name (raw fetch — SDK listPieces only returns counts)
+// :name may contain @ and / so we accept the rest of the path as wildcard via query.
+// Using ?name= avoids path-encoding headaches with "@activepieces/piece-slack".
+workflowRoutes.get("/piece/detail", async (c) => {
+  const credential = c.get("credential");
+  const nameRaw = c.req.query("name");
+  if (!nameRaw) return c.json({ ok: false, message: "name query param is required" }, 400);
+  const name = normalizePieceName(nameRaw);
+
+  const authHeader = credential.startsWith("api_")
+    ? { "x-api-key": credential }
+    : { authorization: `Bearer ${credential}` };
+
+  try {
+    const res = await fetch(`${GW}/activepieces/v1/pieces/${name}`, { headers: authHeader as any });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any)?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return c.json({ ok: true, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
+// NODES — manage trigger + actions on a flow
+// ───────────────────────────────────────────────
+
+// GET /workflow/:flowId/nodes — flat list of trigger + actions
+workflowRoutes.get("/:flowId/nodes", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  try {
+    const flow = await client.activepieces.getFlow(flowId) as any;
+    const nodes = flattenNodes(flow?.version?.trigger);
+    return c.json({ ok: true, count: nodes.length, data: nodes });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/:flowId/nodes
+// Body: {
+//   type: "trigger" | "action",
+//   piece: string,                 // e.g. "slack" or "@activepieces/piece-slack"
+//   triggerName?: string,          // when type=trigger
+//   actionName?: string,           // when type=action
+//   input?: Record<string, any>,
+//   after?: string,                // parent step name (default: end of chain)
+//   name?: string,                 // override auto-generated step_N
+//   displayName?: string,
+// }
+workflowRoutes.post("/:flowId/nodes", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  const body = await c.req.json();
+
+  if (!body.type || !body.piece) {
+    return c.json({ ok: false, message: "type and piece are required" }, 400);
+  }
+  if (body.type === "trigger" && !body.triggerName) {
+    return c.json({ ok: false, message: "triggerName is required when type=trigger" }, 400);
+  }
+  if (body.type === "action" && !body.actionName) {
+    return c.json({ ok: false, message: "actionName is required when type=action" }, 400);
+  }
+
+  const credential = c.get("credential");
+  const pieceName = normalizePieceName(body.piece);
+  const input = body.input || {};
+
+  try {
+    const pieceVersion = body.pieceVersion || (await fetchPieceMeta(pieceName, credential)).version;
+    const propertySettings = buildPropertySettings(input);
+
+    if (body.type === "trigger") {
+      const op = {
+        type: "UPDATE_TRIGGER",
+        request: {
+          name: "trigger",
+          type: "PIECE_TRIGGER",
+          displayName: body.displayName || body.triggerName,
+          settings: {
+            pieceName,
+            pieceVersion,
+            triggerName: body.triggerName,
+            input,
+            propertySettings,
+            sampleData: {},
+          },
+          valid: true,
+        },
+      };
+      const data = await client.activepieces.applyFlowOperation(flowId, op as any);
+      return c.json({ ok: true, message: "Trigger set", data });
+    }
+
+    // type === "action"
+    const flow = await client.activepieces.getFlow(flowId) as any;
+    const trigger = flow?.version?.trigger;
+    const parentStep = body.after || (() => {
+      const nodes = flattenNodes(trigger);
+      return nodes.length > 0 ? nodes[nodes.length - 1].name : "trigger";
+    })();
+    const stepName = body.name || nextStepName(trigger);
+
+    const op = {
+      type: "ADD_ACTION",
+      request: {
+        parentStep,
+        action: {
+          name: stepName,
+          type: "PIECE",
+          displayName: body.displayName || body.actionName,
+          settings: {
+            pieceName,
+            pieceVersion,
+            actionName: body.actionName,
+            input,
+            propertySettings,
+            sampleData: {},
+            errorHandlingOptions: {
+              retryOnFailure: { value: false },
+              continueOnFailure: { value: false },
+            },
+          },
+          valid: true,
+        },
+      },
+    };
+    const data = await client.activepieces.applyFlowOperation(flowId, op as any);
+    return c.json({ ok: true, message: `Action "${stepName}" added after ${parentStep}`, data: { stepName, parentStep, flow: data } });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// PUT /workflow/:flowId/nodes/:nodeName — update node input/displayName
+// Body: { displayName?, input? }
+workflowRoutes.put("/:flowId/nodes/:nodeName", async (c) => {
+  const client = c.get("imbraceClient");
+  const credential = c.get("credential");
+  const flowId = c.req.param("flowId");
+  const nodeName = c.req.param("nodeName");
+  const body = await c.req.json();
+
+  try {
+    const flow = await client.activepieces.getFlow(flowId) as any;
+    const nodes = flattenNodes(flow?.version?.trigger);
+    const cur = nodes.find((n: any) => n.name === nodeName);
+    if (!cur) return c.json({ ok: false, message: `Node "${nodeName}" not found` }, 404);
+
+    const isTrigger = nodeName === "trigger";
+    const opType = isTrigger ? "UPDATE_TRIGGER" : "UPDATE_ACTION";
+    const newInput = body.input ?? cur.input ?? {};
+    const pieceVersion = (await fetchPieceMeta(cur.pieceName, credential)).version;
+
+    const baseSettings: Record<string, any> = {
+      pieceName: cur.pieceName,
+      pieceVersion,
+      input: newInput,
+      propertySettings: buildPropertySettings(newInput),
+      sampleData: {},
+    };
+    if (isTrigger) baseSettings.triggerName = cur.triggerName;
+    else {
+      baseSettings.actionName = cur.actionName;
+      baseSettings.errorHandlingOptions = {
+        retryOnFailure: { value: false },
+        continueOnFailure: { value: false },
+      };
+    }
+
+    const op = {
+      type: opType,
+      request: {
+        name: nodeName,
+        type: cur.type,
+        displayName: body.displayName ?? cur.displayName,
+        settings: baseSettings,
+        valid: true,
+      },
+    };
+    const data = await client.activepieces.applyFlowOperation(flowId, op as any);
+    return c.json({ ok: true, message: `Node "${nodeName}" updated`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// DELETE /workflow/:flowId/nodes/:nodeName
+workflowRoutes.delete("/:flowId/nodes/:nodeName", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  const nodeName = c.req.param("nodeName");
+
+  if (nodeName === "trigger") {
+    return c.json({ ok: false, message: "Cannot delete trigger node — replace it with `node add --type trigger ...` instead" }, 400);
+  }
+
+  try {
+    // DELETE_ACTION expects request.names (plural array)
+    const op = {
+      type: "DELETE_ACTION",
+      request: { names: [nodeName] },
+    };
+    const data = await client.activepieces.applyFlowOperation(flowId, op as any);
+    return c.json({ ok: true, message: `Node "${nodeName}" deleted`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+export default workflowRoutes;

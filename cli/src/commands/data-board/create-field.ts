@@ -3,7 +3,13 @@ import { BaseCommand } from "../../base-command.js";
 import { input, select } from "@inquirer/prompts";
 import { apiRequest } from "../../http.js";
 
-const FIELD_TYPES = ["ShortText", "LongText", "Number", "Dropdown", "Date", "Checkbox"];
+const FIELD_TYPES = [
+  "ShortText", "LongText", "Number", "Date",
+  "Email", "Phone", "Currency",
+  "SingleSelection", "MultipleSelection", "Checkbox",
+  "Assignee", "MultipleAssignee",
+  "Link", "Notes", "Origin", "Priority",
+];
 
 export default class DataBoardCreateField extends BaseCommand {
   static description = "Add a custom field to a board";

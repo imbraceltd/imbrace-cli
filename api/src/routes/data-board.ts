@@ -42,7 +42,7 @@ boardRoutes.post("/create", async (c) => {
 
 // ──── Fields ────
 
-// GET /data-board/:id/fields — lấy danh sách fields của board
+// GET /data-board/:id/fields — list fields of a board
 boardRoutes.get("/:id/fields", async (c) => {
   const client = c.get("imbraceClient");
   const id = c.req.param("id");
@@ -83,8 +83,9 @@ boardRoutes.get("/:id/items", async (c) => {
   try {
     let items: any[];
     if (q) {
-      const res = await client.boards.search(id, { q, limit });
-      items = res.data || [];
+      const res = await client.boards.search(id, { q, limit }) as any;
+      // Meilisearch returns { success, message: { hits, ... } } — not { data }
+      items = res?.message?.hits || res?.data || [];
     } else {
       const res = await client.boards.listItems(id, { limit, skip });
       items = res.data || [];
@@ -146,8 +147,10 @@ boardRoutes.get("/:id/search", async (c) => {
   const q = c.req.query("q") || "";
   const limit = Number(c.req.query("limit") || 10);
   try {
-    const { data: results } = await client.boards.search(id, { q, limit });
-    return c.json({ ok: true, count: results?.length || 0, data: results });
+    const res = await client.boards.search(id, { q, limit }) as any;
+    // Meilisearch returns { success, message: { hits, ... } } — not { data }
+    const results = res?.message?.hits || res?.data || [];
+    return c.json({ ok: true, count: results.length, data: results });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
   }

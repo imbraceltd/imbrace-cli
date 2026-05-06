@@ -5,8 +5,8 @@ import { ImbraceClient } from "@imbrace/sdk";
 const BASE_URL = "https://app-gatewayv2.imbrace.co";
 
 /**
- * Middleware xác thực request bằng @imbrace/sdk
- * Hỗ trợ 2 method:
+ * Authentication middleware using @imbrace/sdk
+ * Supports 2 methods:
  *   1. API Key:  Authorization: Bearer sk-xxx...
  *   2. Token:    Authorization: Bearer <token_from_login>
  */
@@ -24,7 +24,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   try {
     let client: InstanceType<typeof ImbraceClient>;
 
-    // API key: bắt đầu bằng "sk-" hoặc "api_"
+    // API key: starts with "sk-" or "api_"
     const isApiKey = credential.startsWith("sk-") || credential.startsWith("api_");
 
     if (isApiKey) {
@@ -33,15 +33,15 @@ export const authMiddleware = createMiddleware(async (c, next) => {
         baseUrl: BASE_URL,
       });
     } else {
-      // Token từ password login
+      // Token from password login
       client = new ImbraceClient({ baseUrl: BASE_URL });
       client.setAccessToken(credential);
     }
 
-    // Verify bằng cách gọi 1 API nhẹ (ví dụ: list boards)
+    // Verify credential with a lightweight API call
     await client.boards.list();
 
-    // Attach client + user info vào context để routes dùng
+    // Attach client to context for downstream routes
     c.set("imbraceClient", client);
     c.set("credential", credential);
 

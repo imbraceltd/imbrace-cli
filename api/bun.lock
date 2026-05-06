@@ -5,7 +5,7 @@
     "": {
       "name": "@imbrace/api",
       "dependencies": {
-        "@imbrace/sdk": "latest",
+        "@imbrace/sdk": "1.0.2",
         "hono": "^4.7.0",
       },
       "devDependencies": {
@@ -15,7 +15,7 @@
     },
   },
   "packages": {
-    "@imbrace/sdk": ["@imbrace/sdk@1.0.1", "", {}, "sha512-rtd9XtPDbOQIESLbmHIPflOZUwUgu660vxK0i8+3jP8VUJ3L3pKa0XnxFAw6IYMf+ZP7bz4NKgQe3dOtkCKl5g=="],
+    "@imbrace/sdk": ["@imbrace/sdk@1.0.2", "", {}, "sha512-n9GPR5IkY7ScOZwJE6zQtAsTPpHWi1mWVvvUtd2w2RQlIUwM7H7pk3VGkJFQWQoPFImip9zhjQRXpsq/IioDnw=="],
 
     "@types/bun": ["@types/bun@1.3.13", "", { "dependencies": { "bun-types": "1.3.13" } }, "sha512-9fqXWk5YIHGGnUau9TEi+qdlTYDAnOj+xLCmSTwXfAIqXr2x4tytJb43E9uCvt09zJURKXwAtkoH4nLQfzeTXw=="],
 

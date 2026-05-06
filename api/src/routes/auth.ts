@@ -7,9 +7,9 @@ const authRoutes = new Hono();
 
 /**
  * POST /auth/login
- * Body: { email, password } hoặc { apiKey }
+ * Body: { email, password } or { apiKey }
  *
- * Trả về token để CLI lưu lại dùng cho các request sau
+ * Returns a credential token for the CLI to store and reuse
  */
 authRoutes.post("/login", async (c) => {
   const body = await c.req.json();
@@ -22,7 +22,7 @@ authRoutes.post("/login", async (c) => {
         baseUrl: BASE_URL,
       });
 
-      // Verify API key bằng cách gọi thử
+      // Verify API key with a lightweight call
       const { data } = await client.boards.list();
       console.log("data", data);
 

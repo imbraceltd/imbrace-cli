@@ -6,6 +6,8 @@ import { prettyJSON } from "hono/pretty-json";
 import { authMiddleware } from "./middleware/auth";
 import authRoutes from "./routes/auth";
 import boardRoutes from "./routes/data-board";
+import aiAgentRoutes from "./routes/ai-agent";
+import workflowRoutes from "./routes/workflow";
 
 const app = new Hono();
 
@@ -24,12 +26,18 @@ app.get("/", (c) =>
   })
 );
 
-// ──── Auth routes (public - không cần middleware) ────
+// ──── Auth routes (public - no middleware required) ────
 app.route("/auth", authRoutes);
 
-// ──── Protected routes (cần auth) ────
+// ──── Protected routes (auth required) ────
 app.use("/data-board/*", authMiddleware);
 app.route("/data-board", boardRoutes);
+
+app.use("/ai-agent/*", authMiddleware);
+app.route("/ai-agent", aiAgentRoutes);
+
+app.use("/workflow/*", authMiddleware);
+app.route("/workflow", workflowRoutes);
 
 // ──── 404 ────
 app.notFound((c) =>

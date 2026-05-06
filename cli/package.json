@@ -8,11 +8,12 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/commands",
+    "imbrace": "bun run bin/run.js",
     "postpack": "rm -f oclif.manifest.json",
     "prepack": "oclif manifest"
   },
   "dependencies": {
-    "@imbrace/sdk": "latest",
+    "@imbrace/sdk": "1.0.2",
     "@inquirer/prompts": "^7.10.1",
     "@oclif/core": "^4.2.0",
     "@oclif/plugin-autocomplete": "^3.2.0",
@@ -37,6 +38,18 @@
     "topics": {
       "data-board": {
         "description": "Manage data boards — run `imbrace data-board --help` to see all commands"
+      },
+      "ai-agent": {
+        "description": "Manage AI agents — run `imbrace ai-agent --help` to see all commands"
+      },
+      "workflow": {
+        "description": "Manage workflows (Activepieces) — run `imbrace workflow --help` to see all commands"
+      },
+      "workflow:piece": {
+        "description": "Discover available integrations (pieces) — run `imbrace workflow piece --help`"
+      },
+      "workflow:node": {
+        "description": "Manage workflow nodes (trigger + actions) — run `imbrace workflow node --help`"
       }
     }
   },

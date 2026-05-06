@@ -5,7 +5,8 @@
     "": {
       "name": "@imbrace/cli",
       "dependencies": {
-        "@imbrace/sdk": "latest",
+        "@imbrace/sdk": "1.0.2",
+        "@inquirer/prompts": "^7.10.1",
         "@oclif/core": "^4.2.0",
         "@oclif/plugin-autocomplete": "^3.2.0",
         "@oclif/plugin-help": "^6.2.0",
@@ -154,7 +155,7 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.7", "", { "os": "win32", "cpu": "x64" }, "sha512-56hiAJPhwQ1R4i+21FVF7V8kSD5zZTdHcVuRFMW0hn753vVfQN8xlx4uOPT4xoGH0Z/oVATuR82AiqSTDIpaHg=="],
 
-    "@imbrace/sdk": ["@imbrace/sdk@1.0.1", "", {}, "sha512-rtd9XtPDbOQIESLbmHIPflOZUwUgu660vxK0i8+3jP8VUJ3L3pKa0XnxFAw6IYMf+ZP7bz4NKgQe3dOtkCKl5g=="],
+    "@imbrace/sdk": ["@imbrace/sdk@1.0.2", "", {}, "sha512-n9GPR5IkY7ScOZwJE6zQtAsTPpHWi1mWVvvUtd2w2RQlIUwM7H7pk3VGkJFQWQoPFImip9zhjQRXpsq/IioDnw=="],
 
     "@inquirer/ansi": ["@inquirer/ansi@1.0.2", "", {}, "sha512-S8qNSZiYzFd0wAcyG5AXCvUHC5Sr7xpZ9wZ2py9XR88jUz8wooStVx5M6dRzczbBWjic9NP7+rY0Xi7qqK/aMQ=="],
 
