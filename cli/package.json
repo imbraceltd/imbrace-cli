@@ -2,6 +2,17 @@
   "name": "@imbrace/cli",
   "version": "0.1.0",
   "type": "module",
+  "description": "CLI tool for interacting with the Imbrace CRM platform from the terminal",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imbraceltd/imbrace-cli.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/imbraceltd/imbrace-cli/issues"
+  },
+  "homepage": "https://github.com/imbraceltd/imbrace-cli#readme",
+  "license": "MIT",
   "bin": {
     "imbrace": "./bin/run.js"
   },
