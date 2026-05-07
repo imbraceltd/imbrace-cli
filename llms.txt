@@ -188,8 +188,25 @@ A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then 
 **Connections (OAuth / API keys for external services):**
 
 - `imbrace workflow conn list --json` — List saved connections
+- `imbrace workflow conn get <connId> --json` — Get details of a single connection
 - `imbrace workflow conn create --piece <name> --type <T> --value "<token>" --json` — Save credential. `--type`: `SECRET_TEXT` | `OAUTH2` | `CLOUD_OAUTH2` | `BASIC_AUTH` | `CUSTOM_AUTH`
 - `imbrace workflow conn delete <connId> --yes` — Delete a connection
+
+**Folders (organize flows):**
+
+- `imbrace workflow folder list --json` — List all folders
+- `imbrace workflow folder get <folderId> --json` — Folder details
+- `imbrace workflow folder create --name "Sales" --json` — Create (auto-resolves projectId)
+- `imbrace workflow folder update <folderId> --name "Renamed" --json` — Rename
+- `imbrace workflow folder delete <folderId> --yes` — Delete (flows inside become unfiled, NOT deleted)
+
+**MCP servers (Model Context Protocol — let AI agents call piece tools):**
+
+- `imbrace workflow mcp list --json` — List MCP servers for the project
+- `imbrace workflow mcp get <mcpId> --json` — Server details (token NOT shown for security)
+- `imbrace workflow mcp create --name "My MCP" --json` — Create. **Token is shown once at creation — save it immediately.**
+- `imbrace workflow mcp rotate-token <mcpId> --yes` — Issue a new token. Old token stops working immediately.
+- `imbrace workflow mcp delete <mcpId> --yes` — Delete the server
 
 **Lifecycle:**
 

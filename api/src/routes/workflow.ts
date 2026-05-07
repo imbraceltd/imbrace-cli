@@ -431,6 +431,82 @@ workflowRoutes.delete("/:flowId/nodes/:nodeName", async (c) => {
 });
 
 // ───────────────────────────────────────────────
+// MCP SERVERS — Model Context Protocol servers (let AI agents call piece tools)
+// ───────────────────────────────────────────────
+
+// GET /workflow/mcp/list — list all MCP servers for the project
+workflowRoutes.get("/mcp/list", async (c) => {
+  const client = c.get("imbraceClient");
+  try {
+    const projectId = await resolveProjectId(client);
+    const res = await client.activepieces.listMcpServers(projectId);
+    const data = (res as any)?.data ?? [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/mcp/:mcpId
+workflowRoutes.get("/mcp/:mcpId", async (c) => {
+  const client = c.get("imbraceClient");
+  const mcpId = c.req.param("mcpId");
+  try {
+    const data = await client.activepieces.getMcpServer(mcpId);
+    return c.json({ ok: true, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/mcp/create
+// Body: { name: string, projectId?: string }
+workflowRoutes.post("/mcp/create", async (c) => {
+  const client = c.get("imbraceClient");
+  const body = await c.req.json();
+  if (!body.name) return c.json({ ok: false, message: "name is required" }, 400);
+
+  try {
+    const projectId = body.projectId || (await resolveProjectId(client));
+    const data = await client.activepieces.createMcpServer({
+      name: body.name,
+      projectId,
+    } as any);
+    return c.json({ ok: true, message: `MCP server "${body.name}" created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/mcp/:mcpId/rotate-token
+workflowRoutes.post("/mcp/:mcpId/rotate-token", async (c) => {
+  const client = c.get("imbraceClient");
+  const mcpId = c.req.param("mcpId");
+  try {
+    const data = await client.activepieces.rotateMcpToken(mcpId);
+    return c.json({
+      ok: true,
+      message: "Token rotated. Save the new token now — it won't be shown again.",
+      data,
+    });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// DELETE /workflow/mcp/:mcpId
+workflowRoutes.delete("/mcp/:mcpId", async (c) => {
+  const client = c.get("imbraceClient");
+  const mcpId = c.req.param("mcpId");
+  try {
+    await client.activepieces.deleteMcpServer(mcpId);
+    return c.json({ ok: true, message: "MCP server deleted" });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
 // FOLDERS — organize flows into folders
 // ───────────────────────────────────────────────
 

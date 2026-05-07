@@ -56,6 +56,9 @@
       },
       "workflow:folder": {
         "description": "Organize workflows into folders — run `imbrace workflow folder --help`"
+      },
+      "workflow:mcp": {
+        "description": "Manage MCP (Model Context Protocol) servers — run `imbrace workflow mcp --help`"
       }
     }
   },
