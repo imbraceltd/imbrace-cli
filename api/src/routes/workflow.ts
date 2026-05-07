@@ -431,6 +431,83 @@ workflowRoutes.delete("/:flowId/nodes/:nodeName", async (c) => {
 });
 
 // ───────────────────────────────────────────────
+// FOLDERS — organize flows into folders
+// ───────────────────────────────────────────────
+
+// GET /workflow/folder/list
+workflowRoutes.get("/folder/list", async (c) => {
+  const client = c.get("imbraceClient");
+  try {
+    const res = await client.activepieces.listFolders();
+    const data = (res as any)?.data ?? [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/folder/:folderId
+workflowRoutes.get("/folder/:folderId", async (c) => {
+  const client = c.get("imbraceClient");
+  const folderId = c.req.param("folderId");
+  try {
+    const data = await client.activepieces.getFolder(folderId);
+    return c.json({ ok: true, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/folder/create
+// Body: { name: string, projectId?: string }
+workflowRoutes.post("/folder/create", async (c) => {
+  const client = c.get("imbraceClient");
+  const body = await c.req.json();
+  if (!body.name) return c.json({ ok: false, message: "name is required" }, 400);
+
+  try {
+    const projectId = body.projectId || (await resolveProjectId(client));
+    const data = await client.activepieces.createFolder({
+      displayName: body.name,
+      projectId,
+    });
+    return c.json({ ok: true, message: `Folder "${body.name}" created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// PUT /workflow/folder/:folderId — rename
+// Body: { name: string }
+workflowRoutes.put("/folder/:folderId", async (c) => {
+  const client = c.get("imbraceClient");
+  const folderId = c.req.param("folderId");
+  const body = await c.req.json();
+  if (!body.name) return c.json({ ok: false, message: "name is required" }, 400);
+
+  try {
+    const data = await client.activepieces.updateFolder(folderId, {
+      displayName: body.name,
+    });
+    return c.json({ ok: true, message: "Folder renamed", data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// DELETE /workflow/folder/:folderId
+workflowRoutes.delete("/folder/:folderId", async (c) => {
+  const client = c.get("imbraceClient");
+  const folderId = c.req.param("folderId");
+  try {
+    await client.activepieces.deleteFolder(folderId);
+    return c.json({ ok: true, message: "Folder deleted" });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
 // CONNECTIONS — credentials for external services
 // ───────────────────────────────────────────────
 
