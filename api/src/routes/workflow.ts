@@ -385,6 +385,28 @@ workflowRoutes.put("/:flowId/nodes/:nodeName", async (c) => {
   }
 });
 
+// POST /workflow/:flowId/nodes/raw
+// Body: full applyFlowOperation request (passthrough). Use when --type trigger/action
+// is not enough, e.g. ADD_ACTION with type=BRANCH | ROUTER | LOOP_ON_ITEMS | CODE.
+//   Body: { type: "ADD_ACTION" | "UPDATE_ACTION" | "UPDATE_TRIGGER" | "DELETE_ACTION", request: {...} }
+// Caller is responsible for the full payload shape (no auto propertySettings/pieceVersion).
+workflowRoutes.post("/:flowId/nodes/raw", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  const body = await c.req.json();
+
+  if (!body.type || !body.request) {
+    return c.json({ ok: false, message: "Body must be { type, request } — see Activepieces applyFlowOperation schema." }, 400);
+  }
+
+  try {
+    const data = await client.activepieces.applyFlowOperation(flowId, body as any);
+    return c.json({ ok: true, message: `Operation "${body.type}" applied`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
 // DELETE /workflow/:flowId/nodes/:nodeName
 workflowRoutes.delete("/:flowId/nodes/:nodeName", async (c) => {
   const client = c.get("imbraceClient");

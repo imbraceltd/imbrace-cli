@@ -178,6 +178,7 @@ A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then 
 - `imbrace workflow node add <flowId> --type action --piece <name> --action-name <id> --after <parent> --input '{...}' --json` — Add action
 - `imbrace workflow node update <flowId> <nodeName> --input '{...}' --json` — Update node input
 - `imbrace workflow node delete <flowId> <nodeName> --yes --json` — Remove a node
+- `imbrace workflow node add-raw <flowId> --op-file <path>` — Apply raw flow operation. Use for advanced node types (`ROUTER`, `LOOP_ON_ITEMS`, `CODE`) that `node add` doesn't expose. Body shape: `{ type: "ADD_ACTION" \| "UPDATE_ACTION" \| "UPDATE_TRIGGER" \| "DELETE_ACTION", request: {...} }`. Also accepts `--op '<inline JSON>'` or `--stdin`.
 
 **Run history:**
 
@@ -296,12 +297,96 @@ A node's `type` field determines its role in the flow:
 | `PIECE_TRIGGER` | "When does the flow run" — Slack message, webhook, cron, ... | ✅ `node add --type trigger` |
 | `PIECE` | "What runs after" — send Slack, ask AI, HTTP request, ... | ✅ `node add --type action` |
 | `EMPTY` | Placeholder before a real trigger is set (default after `workflow create`) | ✅ Read-only |
-| `BRANCH` | If/else logic | ❌ Not supported via CLI flags — use UI builder |
-| `ROUTER` | Multi-condition switch | ❌ Use UI builder |
-| `LOOP_ON_ITEMS` | Loop over an array | ❌ Use UI builder |
-| `CODE` | Inline JavaScript | ❌ Use UI builder |
+| `ROUTER` | Multi-condition switch (replaces legacy BRANCH) | ✅ `node add-raw` |
+| `LOOP_ON_ITEMS` | Loop over an array | ✅ `node add-raw` |
+| `CODE` | Inline JavaScript | ✅ `node add-raw` |
 
-Most flows use only `PIECE_TRIGGER` + `PIECE` — that covers ~85% of use cases. The other types require complex JSON shapes that are easier to build in the UI.
+Most flows use only `PIECE_TRIGGER` + `PIECE`. For the other 3 types use `node add-raw` with a full Activepieces operation payload — see shapes below.
+
+### Raw operation shapes for advanced nodes
+
+For `ROUTER`, `LOOP_ON_ITEMS`, `CODE` use `imbrace workflow node add-raw <flowId> --op-file <path>`. The op file contains `{ type, request }` — the full Activepieces flow-operation body. Examples:
+
+**ROUTER** — multi-condition switch:
+```json
+{
+  "type": "ADD_ACTION",
+  "request": {
+    "parentStep": "trigger",
+    "action": {
+      "name": "step_1",
+      "type": "ROUTER",
+      "displayName": "Check priority",
+      "settings": {
+        "branches": [
+          {
+            "branchName": "High",
+            "branchType": "CONDITION",
+            "conditions": [[{
+              "operator": "TEXT_EXACTLY_MATCHES",
+              "firstValue": "{{trigger.body.priority}}",
+              "secondValue": "high",
+              "caseSensitive": false
+            }]]
+          },
+          { "branchName": "Default", "branchType": "FALLBACK" }
+        ],
+        "executionType": "EXECUTE_FIRST_MATCH",
+        "sampleData": {}
+      },
+      "children": [null, null],
+      "valid": true
+    }
+  }
+}
+```
+
+**LOOP_ON_ITEMS** — loop over an array. `parentStep` must be a `trigger` or `PIECE` (not a ROUTER):
+```json
+{
+  "type": "ADD_ACTION",
+  "request": {
+    "parentStep": "trigger",
+    "action": {
+      "name": "step_1",
+      "type": "LOOP_ON_ITEMS",
+      "displayName": "Loop users",
+      "settings": { "items": "{{trigger.body.users}}" },
+      "firstLoopAction": null,
+      "valid": true
+    }
+  }
+}
+```
+
+**CODE** — inline JavaScript:
+```json
+{
+  "type": "ADD_ACTION",
+  "request": {
+    "parentStep": "step_1",
+    "action": {
+      "name": "step_2",
+      "type": "CODE",
+      "displayName": "Transform",
+      "settings": {
+        "input": { "x": "{{trigger.body.value}}" },
+        "sourceCode": {
+          "code": "export const code = async (inputs) => ({ doubled: inputs.x * 2 });",
+          "packageJson": "{\"dependencies\":{}}"
+        }
+      },
+      "valid": true
+    }
+  }
+}
+```
+
+**Common operation types** for `add-raw`:
+- `ADD_ACTION` — add a new node (with `parentStep` + `action` shape above)
+- `UPDATE_ACTION` — replace an existing node's settings (request: `{ name, type, displayName, settings, valid }`)
+- `UPDATE_TRIGGER` — replace the trigger node
+- `DELETE_ACTION` — remove a node (request: `{ names: ["step_X"] }`)
 
 ### Connection types
 
