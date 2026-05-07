@@ -179,28 +179,29 @@ A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then 
 - `imbrace workflow node update <flowId> <nodeName> --input '{...}' --json` — Update node input
 - `imbrace workflow node delete <flowId> <nodeName> --yes --json` — Remove a node
 
-**Run history (already implemented — Sprint 1):**
+**Run history:**
 
 - `imbrace workflow runs --json` — List recent runs
 - `imbrace workflow run-detail <runId> --json` — Get run details (status, failed step, logs)
 
-**⏳ Sprint 3 — NOT YET IMPLEMENTED.** The following commands are spec'd but not coded yet. Calling them will return `command not found`. They are planned for the next iteration:
+**Connections (OAuth / API keys for external services):**
 
-```
-# Connections (OAuth / API keys for external services)
-imbrace workflow conn list / create --piece <name> --type SECRET_TEXT --value "<key>" / delete <connId> --yes
+- `imbrace workflow conn list --json` — List saved connections
+- `imbrace workflow conn create --piece <name> --type <T> --value "<token>" --json` — Save credential. `--type`: `SECRET_TEXT` | `OAUTH2` | `CLOUD_OAUTH2` | `BASIC_AUTH` | `CUSTOM_AUTH`
+- `imbrace workflow conn delete <connId> --yes` — Delete a connection
 
-# Lifecycle
-imbrace workflow publish <flowId>
-imbrace workflow enable <flowId>
-imbrace workflow disable <flowId>
+**Lifecycle:**
 
-# Trigger flow with payload
-imbrace workflow run <flowId> --payload '{...}'         # async
-imbrace workflow run <flowId> --payload '{...}' --sync  # wait for result
-```
+- `imbrace workflow publish <flowId>` — Lock current draft as published version (REQUIRED before enable)
+- `imbrace workflow enable <flowId>` — Enable auto-trigger
+- `imbrace workflow disable <flowId>` — Stop auto-trigger (keeps published version)
 
-Until Sprint 3 ships, use the [UI builder](https://cloud.imbrace.co/workflow-v2) for connections / publish / trigger.
+**Trigger flow manually:**
+
+- `imbrace workflow run <flowId> --payload '{...}' --json` — Trigger async (fire-and-forget)
+- `imbrace workflow run <flowId> --payload '{...}' --sync --json` — Trigger and wait. ⚠️ Sync polling may time out at ~30s even when the run finishes faster — fall back to `imbrace workflow runs` + `run-detail <runId>` to verify.
+
+**Order matters:** create flow → add nodes → **publish** → **enable** → run. Trying to `enable` before `publish` returns 500 "publishedFlowVersionId is required".
 
 ### Workflow flags
 
@@ -396,10 +397,13 @@ imbrace workflow piece list --search slack --json
 imbrace workflow piece detail @activepieces/piece-slack --json
 imbrace workflow piece detail @activepieces/piece-ai-connector --json
 
-# 2. ⏳ Save Slack token (one-time per workspace)  — Sprint 3 NOT YET IMPLEMENTED
-#    For now, create the connection via UI: cloud.imbrace.co/workflow-v2 → Connections
-#    Future CLI:
-#    imbrace workflow conn create --piece @activepieces/piece-slack --type SECRET_TEXT --value "xoxb-..." --json
+# 2. Save Slack token (one-time per workspace)  ✅ Sprint 3
+imbrace workflow conn create \
+  --piece @activepieces/piece-slack \
+  --type SECRET_TEXT \
+  --value "xoxb-actual-token" \
+  --json
+# → note conn._id
 
 # 3. Create empty flow  ✅ Sprint 1
 imbrace workflow create --name "Slack AI Reply Bot" --json
@@ -436,16 +440,16 @@ imbrace workflow node add <flowId> \
 # 7. Verify the node tree  ✅ Sprint 2
 imbrace workflow node list <flowId> --json
 
-# 8. ⏳ Test run with sample payload  — Sprint 3 NOT YET IMPLEMENTED
-#    For now: trigger via UI builder's "Test flow" button.
-#    Future CLI:
-#    imbrace workflow run <flowId> --sync --payload '{"text":"...","channel":"C0XXX","ts":"1234.5"}' --json
+# 8. Test run with sample payload  ✅ Sprint 3
+#    --sync may time out (~30s) even if the run finishes faster.
+#    If it times out, use 'workflow runs' + 'run-detail' to fetch the result.
+imbrace workflow run <flowId> --sync \
+  --payload '{"text":"How do I reset my password?","channel":"C0XXXXX","ts":"1234.5"}' \
+  --json
 
-# 9. ⏳ Publish & enable  — Sprint 3 NOT YET IMPLEMENTED
-#    For now: click "Publish" + toggle "Enabled" in UI builder.
-#    Future CLI:
-#    imbrace workflow publish <flowId> --json
-#    imbrace workflow enable <flowId> --json
+# 9. Publish & enable so it runs automatically  ✅ Sprint 3
+imbrace workflow publish <flowId> --json
+imbrace workflow enable <flowId> --json
 ```
 
 ## Adding a New Service

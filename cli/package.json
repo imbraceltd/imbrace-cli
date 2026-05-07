@@ -50,6 +50,9 @@
       },
       "workflow:node": {
         "description": "Manage workflow nodes (trigger + actions) — run `imbrace workflow node --help`"
+      },
+      "workflow:conn": {
+        "description": "Manage connections (credentials for external services) — run `imbrace workflow conn --help`"
       }
     }
   },
