@@ -462,11 +462,19 @@ workflowRoutes.post("/conn/create", async (c) => {
   const projectId = await resolveProjectId(client);
   const externalId = body.externalId || `cli_${Date.now()}`;
 
-  // For SECRET_TEXT: value can be raw string. Activepieces wraps it in { token: <string> }.
-  // For others: caller must supply structured value matching the piece's auth schema.
-  const apValue = body.type === "SECRET_TEXT" && typeof body.value === "string"
-    ? { token: body.value }
-    : body.value;
+  // Activepieces requires `value.type` to match the connection type. Build the
+  // structured value from raw string for the simple cases.
+  let apValue: any;
+  if (body.type === "SECRET_TEXT" && typeof body.value === "string") {
+    apValue = { type: "SECRET_TEXT", secret_text: body.value };
+  } else if (body.type === "BASIC_AUTH" && typeof body.value === "object") {
+    apValue = { type: "BASIC_AUTH", username: body.value.username, password: body.value.password };
+  } else {
+    // OAUTH2/CLOUD_OAUTH2/CUSTOM_AUTH or pre-structured object → caller supplies the full value.
+    apValue = typeof body.value === "object" && body.value.type
+      ? body.value
+      : { type: body.type, ...(typeof body.value === "object" ? body.value : {}) };
+  }
 
   try {
     const data = await client.activepieces.upsertConnection({
@@ -478,6 +486,18 @@ workflowRoutes.post("/conn/create", async (c) => {
       value: apValue,
     } as any);
     return c.json({ ok: true, message: `Connection created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/conn/:connId — get details of a single connection
+workflowRoutes.get("/conn/:connId", async (c) => {
+  const client = c.get("imbraceClient");
+  const connId = c.req.param("connId");
+  try {
+    const data = await client.activepieces.getConnection(connId);
+    return c.json({ ok: true, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
   }
