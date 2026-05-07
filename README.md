@@ -293,7 +293,7 @@ For complete CLI reference for coding agents, see [`llms.txt`](./llms.txt).
 ## Project Structure
 
 ```
-imbrace-cmd/
+imbrace-cli/
 ├── README.md                ← This file
 ├── llms.txt                 ← Reference for coding agents (Claude/Cursor/...)
 ├── install.sh               ← One-shot installer (npm link + cross-shell PATH)

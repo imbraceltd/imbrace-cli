@@ -44,34 +44,49 @@ Things to remember when using Imbrace CLI:
 
 - `imbrace ai-agent list --json` — List all AI agents and their IDs
 - `imbrace ai-agent get <id> --json` — Get details of an AI agent
-- `imbrace ai-agent create --name "Sales Bot" --json` — Create a new AI agent (minimal)
-- `imbrace ai-agent create --name "Support Bot" --instructions "..." --personality "..." --tone "..." --json` — Create with full Behavior Settings
-- `imbrace ai-agent update <id> --name "New Name" --json` — Update agent name
-- `imbrace ai-agent update <id> --instructions "Updated prompt" --json` — Update agent instructions
+- `imbrace ai-agent list-providers --json` — List LLM providers (system + custom)
+- `imbrace ai-agent list-models --provider-id <id> --json` — List models for a specific provider
+- `imbrace ai-agent create --name "Sales Bot" --json` — Create (minimal)
+- `imbrace ai-agent create --name "X" --instructions "..." --personality "..." --tone "..." --json` — Create with full Behavior Settings
+- `imbrace ai-agent update <id> --name "New Name" --json` — Update any subset of fields (others unchanged)
+- `imbrace ai-agent update <id> --temperature 0.7 --tone "Casual" --json` — Update Behavior Settings
 - `imbrace ai-agent delete <id> --yes --json` — Delete an AI agent
 
 ### AI Agent flags
 
-**Basic info:**
+`create` and `update` accept the same flags. `update` lets you change any subset; unspecified flags stay unchanged.
+
+**Identity:**
 - `--name` / `-n` — Agent name (required for create)
 - `--description` / `-d` — Short description (shown under the title in UI list)
 - `--instructions` / `-i` — System prompt sent on every chat
-- `--model` — LLM model name (default: `gpt-4o`)
+
+**Model:**
+- `--model` — LLM model name (default: `gpt-4o`). Discover via `list-models`.
+- `--provider-id` — LLM provider ID (default: `system`). Discover via `list-providers`.
+- `--mode` — `standard` | `advanced` (default: standard)
+- `--temperature` — 0.0–2.0 (default: 0.1). Lower = deterministic, higher = creative.
 
 **Behavior Settings (UI tab):**
 - `--personality` — Persona / role description → `personality_role`
 - `--core-task` — Main tasks the agent performs → `core_task`
 - `--tone` — Tone and style → `tone_and_style`
-- `--response-length` — Response length preference: `short` | `medium` | `long`
-- `--banned-words` — Comma-separated banned words. **Word-level filter** applied to the assistant's outputs (e.g. profanity, brand names). For **topic refusal** ("don't discuss pricing"), put it in `--instructions` instead — banned-words won't catch paraphrases.
-- `--category` — Agent category. UI valid values: `Support`, `Sales`, `Marketing`, `Team`, `Other`. Default: `Support`. Backend accepts any string.
-- `--guardrail-id` — Attach a guardrail by ID (use `imbrace ai-agent list-guardrails` if available, else get ID from UI)
+- `--response-length` — `short` | `medium` | `long`
+- `--banned-words` — Comma-separated. **Word-level filter** on outputs (for topic refusal use `--instructions`).
+- `--category` — `Support` | `Sales` | `Marketing` | `Team` | `Other`. Default: `Support`.
+- `--guardrail-id` — Attach a guardrail by ID
+- `--preload-information` — Static info auto-injected into context every chat
+
+**Runtime toggles (boolean, support `--no-X`):**
+- `--show-thinking` / `--no-show-thinking` — Show model's thinking process (default: false)
+- `--streaming` / `--no-streaming` — Stream response token-by-token (default: true)
+- `--use-memory` / `--no-use-memory` — Remember conversation context across turns (default: true)
 
 **Other:**
 - `--yes` / `-y` — Skip confirmation on delete
 - `--json` — Full JSON output (machine-readable)
-- `--id-only` — Print only the new agent ID (pipe-friendly, no jq needed). On `create` only.
-- `-h` / `--help` — Show usage on any command
+- `--id-only` — Print only the new agent ID (pipe-friendly, no jq). On `create` only.
+- `-h` / `--help` — Show usage
 
 ### Full create example (all Behavior Settings)
 

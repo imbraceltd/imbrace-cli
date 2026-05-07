@@ -4,11 +4,13 @@ import { input } from "@inquirer/prompts";
 import { apiRequest } from "../../http.js";
 
 export default class AiAgentUpdate extends BaseCommand {
-  static description = "Update an AI agent";
+  static description = "Update an AI agent. Pass any subset of flags — others stay unchanged.";
 
   static examples = [
     'imbrace ai-agent update <id> --name "New Name" --json',
     'imbrace ai-agent update <id> --instructions "Updated prompt" --json',
+    'imbrace ai-agent update <id> --temperature 0.7 --tone "More casual" --json',
+    'imbrace ai-agent update <id> --no-streaming --no-use-memory --json',
   ];
 
   static args = {
@@ -16,10 +18,32 @@ export default class AiAgentUpdate extends BaseCommand {
   };
 
   static flags = {
+    // Identity
     name: Flags.string({ char: "n", description: "New name" }),
-    instructions: Flags.string({ char: "i", description: "New instructions/prompt" }),
-    model: Flags.string({ description: "LLM model (e.g. gpt-4o)" }),
     description: Flags.string({ char: "d", description: "New description" }),
+    instructions: Flags.string({ char: "i", description: "New instructions/prompt" }),
+    // Model
+    model: Flags.string({ description: "LLM model (e.g. gpt-4o, qwen3.5-27b)" }),
+    "provider-id": Flags.string({ description: "LLM provider ID" }),
+    mode: Flags.string({ description: "Agent mode", options: ["standard", "advanced"] }),
+    temperature: Flags.string({ description: "Model temperature 0.0-2.0" }),
+    // Behavior
+    personality: Flags.string({ description: "Personality / role" }),
+    "core-task": Flags.string({ description: "Core task description" }),
+    tone: Flags.string({ description: "Tone and style" }),
+    "response-length": Flags.string({ description: "Response length", options: ["short", "medium", "long"] }),
+    "banned-words": Flags.string({ description: "Comma-separated banned words" }),
+    category: Flags.string({
+      description: "Agent category",
+      options: ["Support", "Sales", "Marketing", "Team", "Other"],
+    }),
+    "guardrail-id": Flags.string({ description: "Guardrail ID (set to empty string to remove)" }),
+    "preload-information": Flags.string({ description: "Preload information" }),
+    // Runtime toggles
+    "show-thinking": Flags.boolean({ description: "Show thinking process", allowNo: true }),
+    streaming: Flags.boolean({ description: "Stream response", allowNo: true }),
+    "use-memory": Flags.boolean({ description: "Use conversation memory", allowNo: true }),
+    // Output
     json: Flags.boolean({ description: "Output as JSON" }),
   };
 
@@ -30,18 +54,32 @@ export default class AiAgentUpdate extends BaseCommand {
 
     const body: Record<string, any> = {};
     if (flags.name) body.name = flags.name;
+    if (flags.description) body.description = flags.description;
     if (flags.instructions) body.instructions = flags.instructions;
     if (flags.model) body.model = flags.model;
-    if (flags.description) body.description = flags.description;
+    if (flags["provider-id"]) body.provider_id = flags["provider-id"];
+    if (flags.mode) body.mode = flags.mode;
+    if (flags.temperature) body.temperature = parseFloat(flags.temperature);
+    if (flags.personality !== undefined) body.personality_role = flags.personality;
+    if (flags["core-task"] !== undefined) body.core_task = flags["core-task"];
+    if (flags.tone !== undefined) body.tone_and_style = flags.tone;
+    if (flags["response-length"]) body.response_length = flags["response-length"];
+    if (flags["banned-words"] !== undefined) body.banned_words = flags["banned-words"];
+    if (flags.category) body.category = [flags.category];
+    if (flags["guardrail-id"] !== undefined) body.guardrail_id = flags["guardrail-id"];
+    if (flags["preload-information"] !== undefined) body.preload_information = flags["preload-information"];
+    if (flags["show-thinking"] !== undefined) body.show_thinking_process = flags["show-thinking"];
+    if (flags.streaming !== undefined) body.streaming = flags.streaming;
+    if (flags["use-memory"] !== undefined) body.use_memory = flags["use-memory"];
 
     if (Object.keys(body).length === 0) {
-      this.error("Provide at least one field to update (--name, --instructions, --model, --description)");
+      this.error("Provide at least one field to update. See: imbrace ai-agent update -h");
     }
 
     try {
       const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
         `/ai-agent/${id}`,
-        { method: "PUT", body }
+        { method: "PUT", body },
       );
 
       if (flags.json) {
