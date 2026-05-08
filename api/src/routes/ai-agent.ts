@@ -151,12 +151,12 @@ aiAgentRoutes.post("/create", async (c) => {
         streaming: body.streaming ?? true,
         use_memory: body.use_memory ?? true,
         temperature: typeof body.temperature === "number" ? body.temperature : 0.1,
-        // Knowledge (UI: Knowledge Support tab) — empty by default
-        knowledge_hubs: [],
-        folder_ids: [],
-        default_folder_id: "",
-        board_ids: [],
-        file_ids: [],
+        // Knowledge (UI: Knowledge Support tab) — accept caller-provided arrays
+        knowledge_hubs: body.knowledge_hubs || [],
+        folder_ids: body.folder_ids || [],
+        default_folder_id: body.default_folder_id || "",
+        board_ids: body.board_ids || [],
+        file_ids: body.file_ids || [],
         // Advanced (UI: Advanced Settings tab) — empty by default
         workflow_function_call: [],
         sub_agents: [],
@@ -202,6 +202,8 @@ aiAgentRoutes.put("/:id", async (c) => {
       "instructions", "description", "provider_id",
       "personality_role", "core_task", "tone_and_style", "response_length",
       "banned_words", "category", "guardrail_id", "preload_information", "channel",
+      // Knowledge Support
+      "folder_ids", "default_folder_id", "knowledge_hubs", "board_ids", "file_ids",
     ];
     const hasAssistantUpdate =
       assistantId && (body.name || body.model || typeof body.temperature === "number" ||
