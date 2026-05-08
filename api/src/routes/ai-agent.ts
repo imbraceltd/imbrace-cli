@@ -64,6 +64,32 @@ aiAgentRoutes.get("/providers", async (c) => {
   }
 });
 
+// GET /ai-agent/folders?q=search — list Knowledge Hub folders
+aiAgentRoutes.get("/folders", async (c) => {
+  const client = c.get("imbraceClient");
+  const q = c.req.query("q");
+  try {
+    const r = await client.boards.searchFolders(q ? { q } : undefined) as any;
+    const data = (Array.isArray(r) ? r : r?.data) || [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /ai-agent/folders/:folderId/files — list files in a Knowledge Hub folder
+aiAgentRoutes.get("/folders/:folderId/files", async (c) => {
+  const client = c.get("imbraceClient");
+  const folderId = c.req.param("folderId");
+  try {
+    const r = await client.boards.searchFiles({ folderId }) as any;
+    const data = (Array.isArray(r) ? r : r?.data) || [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
 // GET /ai-agent/providers/:providerId/models — list models for a specific provider
 aiAgentRoutes.get("/providers/:providerId/models", async (c) => {
   const client = c.get("imbraceClient");
