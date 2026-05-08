@@ -337,6 +337,13 @@ imbrace data-board list-items --board-id <boardId> --json
 
 For complete CLI reference for coding agents, see [`llms.txt`](./llms.txt).
 
+**Tip — one-shot setup for an AI agent:**
+```bash
+imbrace docs > /tmp/imbrace-llms.txt   # ~30 KB reference, bundled with the package
+# then feed /tmp/imbrace-llms.txt into your agent's context (Claude Code, Cursor, ...)
+```
+The `imbrace docs` command prints the full `llms.txt` shipped inside the npm package — no network or repo clone needed.
+
 ---
 
 ## Project Structure
