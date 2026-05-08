@@ -9,11 +9,13 @@ export default class WorkflowCreate extends BaseCommand {
   static examples = [
     'imbrace workflow create --name "My Flow" --json',
     'imbrace workflow create --name "Slack Bot" --id-only',
+    'imbrace workflow create --name "Lead handler" --folder-id <folderId>',
   ];
 
   static flags = {
     name: Flags.string({ char: "n", description: "Workflow display name (required)" }),
     "project-id": Flags.string({ description: "Project ID. Auto-discovered from existing flows if omitted." }),
+    "folder-id": Flags.string({ description: "Place the flow in this folder (use 'imbrace workflow folder list' to discover)." }),
     json: Flags.boolean({ description: "Output as JSON" }),
     "id-only": Flags.boolean({ description: "Print only the new workflow ID (pipe-friendly)" }),
   };
@@ -26,6 +28,7 @@ export default class WorkflowCreate extends BaseCommand {
 
     const body: Record<string, any> = { name };
     if (flags["project-id"]) body.projectId = flags["project-id"];
+    if (flags["folder-id"]) body.folderId = flags["folder-id"];
 
     try {
       const res = await apiRequest<{ ok: boolean; message: string; data: any }>(

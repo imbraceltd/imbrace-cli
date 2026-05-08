@@ -51,22 +51,29 @@ function buildPropertySettings(input: Record<string, any>): Record<string, any> 
 }
 
 // Walk the trigger.nextAction chain into a flat array of nodes.
+// Also traverses ROUTER.children[] and LOOP.firstLoopAction so update/delete
+// can target nodes nested inside branches or loop bodies.
 function flattenNodes(trigger: any): any[] {
   const nodes: any[] = [];
-  let cur = trigger;
-  while (cur) {
+  function visit(node: any) {
+    if (!node) return;
     nodes.push({
-      name: cur.name,
-      type: cur.type,
-      displayName: cur.displayName,
-      pieceName: cur.settings?.pieceName,
-      actionName: cur.settings?.actionName,
-      triggerName: cur.settings?.triggerName,
-      input: cur.settings?.input,
-      valid: cur.valid,
+      name: node.name,
+      type: node.type,
+      displayName: node.displayName,
+      pieceName: node.settings?.pieceName,
+      actionName: node.settings?.actionName,
+      triggerName: node.settings?.triggerName,
+      input: node.settings?.input,
+      valid: node.valid,
     });
-    cur = cur.nextAction;
+    if (node.nextAction) visit(node.nextAction);
+    for (const ch of (node.children || [])) {
+      if (ch) visit(ch);
+    }
+    if (node.firstLoopAction) visit(node.firstLoopAction);
   }
+  visit(trigger);
   return nodes;
 }
 
@@ -104,11 +111,17 @@ workflowRoutes.get("/runs/:runId", async (c) => {
   }
 });
 
-// GET /workflow/list
+// GET /workflow/list?folderId=<id|NULL>
+//   folderId omitted → all flows
+//   folderId=NULL    → only flows not in any folder (unfiled)
+//   folderId=<id>    → only flows in that folder
 workflowRoutes.get("/list", async (c) => {
   const client = c.get("imbraceClient");
+  const folderId = c.req.query("folderId");
   try {
-    const res = await client.activepieces.listFlows();
+    const params: Record<string, string> = {};
+    if (folderId) params.folderId = folderId;
+    const res = await client.activepieces.listFlows(params as any);
     const data = (res as any)?.data ?? [];
     return c.json({ ok: true, count: data.length, data });
   } catch (error: any) {
@@ -129,7 +142,7 @@ workflowRoutes.get("/:id", async (c) => {
 });
 
 // POST /workflow/create
-// Body: { name: string, projectId?: string }
+// Body: { name: string, projectId?: string, folderId?: string }
 workflowRoutes.post("/create", async (c) => {
   const client = c.get("imbraceClient");
   const body = await c.req.json();
@@ -137,11 +150,36 @@ workflowRoutes.post("/create", async (c) => {
 
   try {
     const projectId = body.projectId || (await resolveProjectId(client));
-    const data = await client.activepieces.createFlow({
+    const createBody: Record<string, any> = {
       displayName: body.name,
       projectId,
-    });
+    };
+    if (body.folderId) createBody.folderId = body.folderId;
+    const data = await client.activepieces.createFlow(createBody);
     return c.json({ ok: true, message: `Workflow "${body.name}" created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/:id/move — move flow to a folder (or unfile with folderId=null)
+// Body: { folderId: string | null }
+workflowRoutes.post("/:id/move", async (c) => {
+  const client = c.get("imbraceClient");
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  if (!("folderId" in body)) {
+    return c.json({ ok: false, message: "folderId is required (string or null)" }, 400);
+  }
+
+  try {
+    const op = {
+      type: "CHANGE_FOLDER",
+      request: { folderId: body.folderId },
+    };
+    const data = await client.activepieces.applyFlowOperation(id, op as any);
+    const target = body.folderId ?? "(unfiled)";
+    return c.json({ ok: true, message: `Workflow moved to ${target}`, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
   }
@@ -385,6 +423,28 @@ workflowRoutes.put("/:flowId/nodes/:nodeName", async (c) => {
   }
 });
 
+// POST /workflow/:flowId/nodes/raw
+// Body: full applyFlowOperation request (passthrough). Use when --type trigger/action
+// is not enough, e.g. ADD_ACTION with type=BRANCH | ROUTER | LOOP_ON_ITEMS | CODE.
+//   Body: { type: "ADD_ACTION" | "UPDATE_ACTION" | "UPDATE_TRIGGER" | "DELETE_ACTION", request: {...} }
+// Caller is responsible for the full payload shape (no auto propertySettings/pieceVersion).
+workflowRoutes.post("/:flowId/nodes/raw", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  const body = await c.req.json();
+
+  if (!body.type || !body.request) {
+    return c.json({ ok: false, message: "Body must be { type, request } — see Activepieces applyFlowOperation schema." }, 400);
+  }
+
+  try {
+    const data = await client.activepieces.applyFlowOperation(flowId, body as any);
+    return c.json({ ok: true, message: `Operation "${body.type}" applied`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
 // DELETE /workflow/:flowId/nodes/:nodeName
 workflowRoutes.delete("/:flowId/nodes/:nodeName", async (c) => {
   const client = c.get("imbraceClient");
@@ -403,6 +463,322 @@ workflowRoutes.delete("/:flowId/nodes/:nodeName", async (c) => {
     };
     const data = await client.activepieces.applyFlowOperation(flowId, op as any);
     return c.json({ ok: true, message: `Node "${nodeName}" deleted`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
+// MCP SERVERS — Model Context Protocol servers (let AI agents call piece tools)
+// ───────────────────────────────────────────────
+
+// GET /workflow/mcp/list — list all MCP servers for the project
+workflowRoutes.get("/mcp/list", async (c) => {
+  const client = c.get("imbraceClient");
+  try {
+    const projectId = await resolveProjectId(client);
+    const res = await client.activepieces.listMcpServers(projectId);
+    const data = (res as any)?.data ?? [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/mcp/:mcpId
+workflowRoutes.get("/mcp/:mcpId", async (c) => {
+  const client = c.get("imbraceClient");
+  const mcpId = c.req.param("mcpId");
+  try {
+    const data = await client.activepieces.getMcpServer(mcpId);
+    return c.json({ ok: true, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/mcp/create
+// Body: { name: string, projectId?: string }
+workflowRoutes.post("/mcp/create", async (c) => {
+  const client = c.get("imbraceClient");
+  const body = await c.req.json();
+  if (!body.name) return c.json({ ok: false, message: "name is required" }, 400);
+
+  try {
+    const projectId = body.projectId || (await resolveProjectId(client));
+    const data = await client.activepieces.createMcpServer({
+      name: body.name,
+      projectId,
+    } as any);
+    return c.json({ ok: true, message: `MCP server "${body.name}" created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/mcp/:mcpId/rotate-token
+workflowRoutes.post("/mcp/:mcpId/rotate-token", async (c) => {
+  const client = c.get("imbraceClient");
+  const mcpId = c.req.param("mcpId");
+  try {
+    const data = await client.activepieces.rotateMcpToken(mcpId);
+    return c.json({
+      ok: true,
+      message: "Token rotated. Save the new token now — it won't be shown again.",
+      data,
+    });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// DELETE /workflow/mcp/:mcpId
+workflowRoutes.delete("/mcp/:mcpId", async (c) => {
+  const client = c.get("imbraceClient");
+  const mcpId = c.req.param("mcpId");
+  try {
+    await client.activepieces.deleteMcpServer(mcpId);
+    return c.json({ ok: true, message: "MCP server deleted" });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
+// FOLDERS — organize flows into folders
+// ───────────────────────────────────────────────
+
+// GET /workflow/folder/list
+workflowRoutes.get("/folder/list", async (c) => {
+  const client = c.get("imbraceClient");
+  try {
+    const res = await client.activepieces.listFolders();
+    const data = (res as any)?.data ?? [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/folder/:folderId
+workflowRoutes.get("/folder/:folderId", async (c) => {
+  const client = c.get("imbraceClient");
+  const folderId = c.req.param("folderId");
+  try {
+    const data = await client.activepieces.getFolder(folderId);
+    return c.json({ ok: true, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/folder/create
+// Body: { name: string, projectId?: string }
+workflowRoutes.post("/folder/create", async (c) => {
+  const client = c.get("imbraceClient");
+  const body = await c.req.json();
+  if (!body.name) return c.json({ ok: false, message: "name is required" }, 400);
+
+  try {
+    const projectId = body.projectId || (await resolveProjectId(client));
+    const data = await client.activepieces.createFolder({
+      displayName: body.name,
+      projectId,
+    });
+    return c.json({ ok: true, message: `Folder "${body.name}" created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// PUT /workflow/folder/:folderId — rename
+// Body: { name: string }
+workflowRoutes.put("/folder/:folderId", async (c) => {
+  const client = c.get("imbraceClient");
+  const folderId = c.req.param("folderId");
+  const body = await c.req.json();
+  if (!body.name) return c.json({ ok: false, message: "name is required" }, 400);
+
+  try {
+    const data = await client.activepieces.updateFolder(folderId, {
+      displayName: body.name,
+    });
+    return c.json({ ok: true, message: "Folder renamed", data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// DELETE /workflow/folder/:folderId
+workflowRoutes.delete("/folder/:folderId", async (c) => {
+  const client = c.get("imbraceClient");
+  const folderId = c.req.param("folderId");
+  try {
+    await client.activepieces.deleteFolder(folderId);
+    return c.json({ ok: true, message: "Folder deleted" });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
+// CONNECTIONS — credentials for external services
+// ───────────────────────────────────────────────
+
+// GET /workflow/conn/list
+workflowRoutes.get("/conn/list", async (c) => {
+  const client = c.get("imbraceClient");
+  try {
+    const res = await client.activepieces.listConnections();
+    const data = (res as any)?.data ?? [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/conn/create
+// Body: { piece, displayName, type, value }
+//   piece: "slack" or "@activepieces/piece-slack"
+//   type: "SECRET_TEXT" | "OAUTH2" | "BASIC_AUTH" | "CUSTOM_AUTH" | "CLOUD_OAUTH2"
+//   value: token string (for SECRET_TEXT) or JSON object for richer auth types
+workflowRoutes.post("/conn/create", async (c) => {
+  const client = c.get("imbraceClient");
+  const body = await c.req.json();
+  if (!body.piece || !body.type || body.value === undefined) {
+    return c.json({ ok: false, message: "piece, type, value are required" }, 400);
+  }
+
+  const pieceName = normalizePieceName(body.piece);
+  const projectId = await resolveProjectId(client);
+  const externalId = body.externalId || `cli_${Date.now()}`;
+
+  // Activepieces requires `value.type` to match the connection type. Build the
+  // structured value from raw string for the simple cases.
+  let apValue: any;
+  if (body.type === "SECRET_TEXT" && typeof body.value === "string") {
+    apValue = { type: "SECRET_TEXT", secret_text: body.value };
+  } else if (body.type === "BASIC_AUTH" && typeof body.value === "object") {
+    apValue = { type: "BASIC_AUTH", username: body.value.username, password: body.value.password };
+  } else {
+    // OAUTH2/CLOUD_OAUTH2/CUSTOM_AUTH or pre-structured object → caller supplies the full value.
+    apValue = typeof body.value === "object" && body.value.type
+      ? body.value
+      : { type: body.type, ...(typeof body.value === "object" ? body.value : {}) };
+  }
+
+  try {
+    const data = await client.activepieces.upsertConnection({
+      pieceName,
+      projectId,
+      externalId,
+      displayName: body.displayName || `${pieceName.split("/").pop()} (${externalId})`,
+      type: body.type,
+      value: apValue,
+    } as any);
+    return c.json({ ok: true, message: `Connection created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /workflow/conn/:connId — get details of a single connection
+workflowRoutes.get("/conn/:connId", async (c) => {
+  const client = c.get("imbraceClient");
+  const connId = c.req.param("connId");
+  try {
+    const data = await client.activepieces.getConnection(connId);
+    return c.json({ ok: true, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// DELETE /workflow/conn/:connId
+workflowRoutes.delete("/conn/:connId", async (c) => {
+  const client = c.get("imbraceClient");
+  const connId = c.req.param("connId");
+  try {
+    await client.activepieces.deleteConnection(connId);
+    return c.json({ ok: true, message: "Connection deleted" });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
+// LIFECYCLE — publish, enable, disable
+// ───────────────────────────────────────────────
+
+// POST /workflow/:flowId/publish — lock current draft as published version
+workflowRoutes.post("/:flowId/publish", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  try {
+    const data = await client.activepieces.applyFlowOperation(flowId, {
+      type: "LOCK_AND_PUBLISH",
+      request: {},
+    } as any);
+    return c.json({ ok: true, message: "Workflow published", data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/:flowId/enable
+workflowRoutes.post("/:flowId/enable", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  try {
+    const data = await client.activepieces.applyFlowOperation(flowId, {
+      type: "CHANGE_STATUS",
+      request: { status: "ENABLED" },
+    } as any);
+    return c.json({ ok: true, message: "Workflow enabled", data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/:flowId/disable
+workflowRoutes.post("/:flowId/disable", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  try {
+    const data = await client.activepieces.applyFlowOperation(flowId, {
+      type: "CHANGE_STATUS",
+      request: { status: "DISABLED" },
+    } as any);
+    return c.json({ ok: true, message: "Workflow disabled", data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// ───────────────────────────────────────────────
+// RUN — manually trigger a flow with payload
+// ───────────────────────────────────────────────
+
+// POST /workflow/:flowId/run?sync=true
+// Body: { payload?: object }
+workflowRoutes.post("/:flowId/run", async (c) => {
+  const client = c.get("imbraceClient");
+  const flowId = c.req.param("flowId");
+  const sync = c.req.query("sync") === "true";
+  const body = await c.req.json().catch(() => ({}));
+  const payload = body.payload || {};
+
+  try {
+    const fn = sync
+      ? client.activepieces.triggerFlowSync.bind(client.activepieces)
+      : client.activepieces.triggerFlow.bind(client.activepieces);
+    const data = await fn(flowId, payload);
+    return c.json({
+      ok: true,
+      message: sync ? "Workflow triggered (sync)" : "Workflow triggered (async)",
+      mode: sync ? "sync" : "async",
+      data,
+    });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
   }

@@ -61,6 +61,15 @@
       },
       "workflow:node": {
         "description": "Manage workflow nodes (trigger + actions) — run `imbrace workflow node --help`"
+      },
+      "workflow:conn": {
+        "description": "Manage connections (credentials for external services) — run `imbrace workflow conn --help`"
+      },
+      "workflow:folder": {
+        "description": "Organize workflows into folders — run `imbrace workflow folder --help`"
+      },
+      "workflow:mcp": {
+        "description": "Manage MCP (Model Context Protocol) servers — run `imbrace workflow mcp --help`"
       }
     }
   },

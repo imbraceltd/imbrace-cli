@@ -19,18 +19,39 @@ aiAgentRoutes.get("/list", async (c) => {
   }
 });
 
+// Helper: fetch system provider models from the real backend endpoint.
+async function fetchSystemModels(credential: string): Promise<string[]> {
+  const authHeader = credential.startsWith("api_")
+    ? { "x-api-key": credential }
+    : { authorization: `Bearer ${credential}` };
+  const res = await fetch(`${GW}/ai/v3/workflow-agent/models`, { headers: authHeader as any });
+  if (!res.ok) return ["Default"];
+  const j = await res.json() as any;
+  const arr = j?.data || j?.message?.data || [];
+  return arr.map((m: any) => typeof m === "string" ? m : m.name).filter(Boolean);
+}
+
 // GET /ai-agent/providers — list LLM providers (system + custom)
 // Must come before /:id so "providers" doesn't get matched as an ID.
 aiAgentRoutes.get("/providers", async (c) => {
   const client = c.get("imbraceClient");
+  const credential = c.get("credential");
   try {
-    const r = await client.ai.listProviders() as any;
+    const [r, systemModels] = await Promise.all([
+      client.ai.listProviders() as Promise<any>,
+      fetchSystemModels(credential),
+    ]);
     const arr = (r?.data || r) as any[];
+    // IMPORTANT: provider has TWO IDs — `_id` (MongoDB ObjectId) and
+    // `provider_id` (UUID). The UI dropdown matches on `provider_id`. Always
+    // expose `provider_id` as the canonical id so agents created via CLI
+    // render correctly in the UI.
     const data = [
-      { _id: "system", id: "system", name: "system", type: "system", is_default: true, models: ["gpt-4o", "gpt-4o-mini"] },
+      { id: "system", _id: "system", provider_id: "system", name: "system", type: "system", is_default: true, models: systemModels },
       ...arr.map((p) => ({
+        id: p.provider_id || p._id,
         _id: p._id,
-        id: p._id,
+        provider_id: p.provider_id || p._id,
         name: p.name,
         type: p.type,
         is_default: false,
@@ -43,17 +64,46 @@ aiAgentRoutes.get("/providers", async (c) => {
   }
 });
 
+// GET /ai-agent/folders?q=search — list Knowledge Hub folders
+aiAgentRoutes.get("/folders", async (c) => {
+  const client = c.get("imbraceClient");
+  const q = c.req.query("q");
+  try {
+    const r = await client.boards.searchFolders(q ? { q } : undefined) as any;
+    const data = (Array.isArray(r) ? r : r?.data) || [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// GET /ai-agent/folders/:folderId/files — list files in a Knowledge Hub folder
+aiAgentRoutes.get("/folders/:folderId/files", async (c) => {
+  const client = c.get("imbraceClient");
+  const folderId = c.req.param("folderId");
+  try {
+    const r = await client.boards.searchFiles({ folderId }) as any;
+    const data = (Array.isArray(r) ? r : r?.data) || [];
+    return c.json({ ok: true, count: data.length, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
 // GET /ai-agent/providers/:providerId/models — list models for a specific provider
 aiAgentRoutes.get("/providers/:providerId/models", async (c) => {
   const client = c.get("imbraceClient");
   const providerId = c.req.param("providerId");
+  const credential = c.get("credential");
   try {
     if (providerId === "system") {
-      return c.json({ ok: true, count: 4, data: ["gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet", "claude-3-haiku"] });
+      const models = await fetchSystemModels(credential);
+      return c.json({ ok: true, count: models.length, data: models });
     }
     const r = await client.ai.listProviders() as any;
     const arr = (r?.data || r) as any[];
-    const provider = arr.find((p) => p._id === providerId || p.id === providerId);
+    // Match against either provider_id (UUID, preferred) or _id (legacy)
+    const provider = arr.find((p) => p.provider_id === providerId || p._id === providerId);
     if (!provider) return c.json({ ok: false, message: `Provider "${providerId}" not found` }, 404);
     const models = (provider.models || []).map((m: any) => typeof m === "string" ? m : m.name);
     return c.json({ ok: true, count: models.length, data: models });
@@ -103,9 +153,11 @@ aiAgentRoutes.post("/create", async (c) => {
         instructions: body.instructions || "",
         workflow_name: workflowName,
         credential_name: `${body.mode || "standard"} | ${body.name}`,
-        // Model
+        // Model — system provider only has "Default" model on platform; custom
+        // providers (openai, vllm, ...) have their own model lists. Caller can
+        // override via --model.
         provider_id: body.provider_id || "system",
-        model_id: body.model || "gpt-4o",
+        model_id: body.model || "Default",
         // Agent / channel scope
         agent_type: "agent",
         mode: body.mode || "standard",
@@ -125,12 +177,12 @@ aiAgentRoutes.post("/create", async (c) => {
         streaming: body.streaming ?? true,
         use_memory: body.use_memory ?? true,
         temperature: typeof body.temperature === "number" ? body.temperature : 0.1,
-        // Knowledge (UI: Knowledge Support tab) — empty by default
-        knowledge_hubs: [],
-        folder_ids: [],
-        default_folder_id: "",
-        board_ids: [],
-        file_ids: [],
+        // Knowledge (UI: Knowledge Support tab) — accept caller-provided arrays
+        knowledge_hubs: body.knowledge_hubs || [],
+        folder_ids: body.folder_ids || [],
+        default_folder_id: body.default_folder_id || "",
+        board_ids: body.board_ids || [],
+        file_ids: body.file_ids || [],
         // Advanced (UI: Advanced Settings tab) — empty by default
         workflow_function_call: [],
         sub_agents: [],
@@ -176,6 +228,8 @@ aiAgentRoutes.put("/:id", async (c) => {
       "instructions", "description", "provider_id",
       "personality_role", "core_task", "tone_and_style", "response_length",
       "banned_words", "category", "guardrail_id", "preload_information", "channel",
+      // Knowledge Support
+      "folder_ids", "default_folder_id", "knowledge_hubs", "board_ids", "file_ids",
     ];
     const hasAssistantUpdate =
       assistantId && (body.name || body.model || typeof body.temperature === "number" ||
@@ -184,10 +238,23 @@ aiAgentRoutes.put("/:id", async (c) => {
         assistantFields.some((f) => body[f] !== undefined));
 
     if (hasAssistantUpdate) {
+      // SDK chatAi.updateAssistant uses PUT (full replace) — fields not in the
+      // body get reset to null. Fetch current assistant first and merge so that
+      // unchanged fields are preserved.
+      const credential = c.get("credential");
+      const authHeader = credential.startsWith("api_")
+        ? { "x-api-key": credential }
+        : { authorization: `Bearer ${credential}` };
+      const currentAssistant = await fetch(
+        `${GW}/v3/ai/assistants/${assistantId}`,
+        { headers: authHeader as any },
+      ).then((r) => r.json()) as any;
+
       const aUpdate: Record<string, any> = {
-        name: body.name ?? tpl.title,
+        ...currentAssistant,
+        name: body.name ?? currentAssistant.name,
         // workflow_name required by backend even on partial update
-        workflow_name: tpl.workflow_name || `${(body.name ?? tpl.title).toLowerCase().replace(/[^a-z0-9]+/g, "_")}_v${Date.now()}`,
+        workflow_name: currentAssistant.workflow_name || `${(body.name ?? currentAssistant.name).toLowerCase().replace(/[^a-z0-9]+/g, "_")}_v${Date.now()}`,
       };
       if (body.model) aUpdate.model_id = body.model;
       if (body.mode) aUpdate.mode = body.mode;

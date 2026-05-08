@@ -8,17 +8,24 @@ export default class WorkflowList extends BaseCommand {
   static examples = [
     "imbrace workflow list",
     "imbrace workflow list --json",
+    "imbrace workflow list --folder-id <folderId>",
+    "imbrace workflow list --folder-id NULL  # only unfiled flows",
   ];
 
   static flags = {
+    "folder-id": Flags.string({
+      description:
+        "Filter to flows in this folder. Use 'NULL' to show only unfiled flows. Use 'imbrace workflow folder list' to discover folder IDs.",
+    }),
     json: Flags.boolean({ description: "Output as JSON" }),
   };
 
   async run() {
     const { flags } = await this.parse(WorkflowList);
 
+    const qs = flags["folder-id"] ? `?folderId=${encodeURIComponent(flags["folder-id"])}` : "";
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>("/workflow/list");
+      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>(`/workflow/list${qs}`);
 
       if (flags.json) {
         this.log(JSON.stringify(res, null, 2));

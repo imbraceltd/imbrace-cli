@@ -42,15 +42,22 @@ Things to remember when using Imbrace CLI:
 
 ## AI Agent Commands
 
+**CRUD:**
 - `imbrace ai-agent list --json` — List all AI agents and their IDs
 - `imbrace ai-agent get <id> --json` — Get details of an AI agent
-- `imbrace ai-agent list-providers --json` — List LLM providers (system + custom)
-- `imbrace ai-agent list-models --provider-id <id> --json` — List models for a specific provider
-- `imbrace ai-agent create --name "Sales Bot" --json` — Create (minimal)
+- `imbrace ai-agent create --name "Sales Bot" --json` — Create (minimal — defaults to system provider, "Default" model)
 - `imbrace ai-agent create --name "X" --instructions "..." --personality "..." --tone "..." --json` — Create with full Behavior Settings
-- `imbrace ai-agent update <id> --name "New Name" --json` — Update any subset of fields (others unchanged)
+- `imbrace ai-agent update <id> --name "New Name" --json` — Update any subset of fields (others preserved via PUT-merge)
 - `imbrace ai-agent update <id> --temperature 0.7 --tone "Casual" --json` — Update Behavior Settings
 - `imbrace ai-agent delete <id> --yes --json` — Delete an AI agent
+
+**Discovery (LLM providers/models):**
+- `imbrace ai-agent list-providers --json` — List LLM providers (system + custom). Returns the UUID `provider_id` to pass to `--provider-id`.
+- `imbrace ai-agent list-models --provider-id <id> --json` — List models for a provider. Use `system` for the default provider.
+
+**Discovery (Knowledge Hub):**
+- `imbrace ai-agent list-folders [--search <q>] --json` — List Knowledge Hub folders for `--folder-ids`.
+- `imbrace ai-agent list-files --folder-id <id> --json` — List files inside a folder for `--file-ids`.
 
 ### AI Agent flags
 
@@ -62,8 +69,8 @@ Things to remember when using Imbrace CLI:
 - `--instructions` / `-i` — System prompt sent on every chat
 
 **Model:**
-- `--model` — LLM model name (default: `gpt-4o`). Discover via `list-models`.
-- `--provider-id` — LLM provider ID (default: `system`). Discover via `list-providers`.
+- `--model` — LLM model name (default: `Default` for system provider). Discover via `list-models`. **System provider only has one model named `Default`** — passing other names (like `gpt-4o`) makes the UI dropdown render empty even though the agent saves.
+- `--provider-id` — LLM provider ID (default: `system`). Discover via `list-providers`. **Pass the UUID `provider_id`, NOT the MongoDB `_id`** — the UI matches dropdowns against the UUID.
 - `--mode` — `standard` | `advanced` (default: standard)
 - `--temperature` — 0.0–2.0 (default: 0.1). Lower = deterministic, higher = creative.
 
@@ -77,10 +84,17 @@ Things to remember when using Imbrace CLI:
 - `--guardrail-id` — Attach a guardrail by ID
 - `--preload-information` — Static info auto-injected into context every chat
 
+**Knowledge Support (UI tab) — comma-separated IDs:**
+- `--folder-ids "id1,id2"` — Knowledge Hub folder IDs (RAG sources). Discover via `list-folders`.
+- `--default-folder-id <id>` — Default folder for new files
+- `--knowledge-hubs "id1,id2"` — Knowledge Hub IDs
+- `--board-ids "brd_xxx,brd_yyy"` — Document Model (data board) IDs. Discover via `imbrace data-board list`.
+- `--file-ids "id1,id2"` — Pre-uploaded file IDs. Discover via `list-files --folder-id <id>`.
+
 **Runtime toggles (boolean, support `--no-X`):**
 - `--show-thinking` / `--no-show-thinking` — Show model's thinking process (default: false)
 - `--streaming` / `--no-streaming` — Stream response token-by-token (default: true)
-- `--use-memory` / `--no-use-memory` — Remember conversation context across turns (default: true)
+- `--use-memory` / `--no-use-memory` — Remember conversation context across turns (default: true). **Known issue:** `--no-use-memory` at create may not stick (backend default override) — workaround: update after create.
 
 **Other:**
 - `--yes` / `-y` — Skip confirmation on delete
@@ -88,20 +102,33 @@ Things to remember when using Imbrace CLI:
 - `--id-only` — Print only the new agent ID (pipe-friendly, no jq). On `create` only.
 - `-h` / `--help` — Show usage
 
-### Full create example (all Behavior Settings)
+### Full create example (Behavior Settings + custom provider + Knowledge)
 
 ```bash
+# 1. Discover provider + model
+imbrace ai-agent list-providers --json
+imbrace ai-agent list-models --provider-id e2629292-7e9f-4d55-ba18-6827747eab33 --json
+
+# 2. Discover Knowledge Hub folder + board (Document Model)
+imbrace ai-agent list-folders --search support --json
+imbrace data-board list --json
+
+# 3. Create with full settings
 imbrace ai-agent create \
   --name "Customer Support Specialist" \
-  --description "Senior AI customer support agent for an e-commerce company" \
-  --instructions "You are a senior customer support specialist. Help customers with product questions, order tracking, and complaints. Escalate to a human for refunds over \$500, suspected fraud, or legal threats." \
-  --personality "Friendly and professional senior customer support agent" \
-  --core-task "Answer product inquiries, help track orders, resolve complaints, recommend products" \
-  --tone "Polite, professional, warm. Empathetic when frustrated. Concise and direct." \
+  --description "Senior AI customer support agent" \
+  --instructions "You are a senior customer support specialist..." \
+  --personality "Friendly and professional" \
+  --core-task "Answer product inquiries, help track orders" \
+  --tone "Polite, professional, warm" \
   --response-length "medium" \
-  --banned-words "stupid, idiot, shut up, guarantee, promise" \
+  --banned-words "stupid, idiot" \
   --category "Support" \
-  --model gpt-4o \
+  --provider-id "e2629292-7e9f-4d55-ba18-6827747eab33" \
+  --model "gpt-4o-mini" \
+  --temperature 0.3 \
+  --folder-ids "69bb82faa2cc764639bc6bdb" \
+  --board-ids "brd_e5450d76-84d4-4c34-8b13-3d0f1873b53b" \
   --json
 ```
 
@@ -161,8 +188,12 @@ A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then 
 **Flow CRUD:**
 
 - `imbrace workflow list --json` — List all workflows and their IDs
+- `imbrace workflow list --folder-id <folderId> --json` — Filter to flows in one folder/category
+- `imbrace workflow list --folder-id NULL --json` — Only flows that aren't in any folder
 - `imbrace workflow get <flowId> --json` — Get details (including node tree)
 - `imbrace workflow create --name "My Flow" --json` — Create an empty workflow
+- `imbrace workflow create --name "X" --folder-id <folderId> --json` — Create directly inside a category folder
+- `imbrace workflow move <flowId> --folder-id <folderId>` — Move a flow into a folder. Pass `NULL` to unfile.
 - `imbrace workflow delete <flowId> --yes --json` — Delete a workflow
 
 **Discover available integrations (pieces):**
@@ -178,29 +209,59 @@ A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then 
 - `imbrace workflow node add <flowId> --type action --piece <name> --action-name <id> --after <parent> --input '{...}' --json` — Add action
 - `imbrace workflow node update <flowId> <nodeName> --input '{...}' --json` — Update node input
 - `imbrace workflow node delete <flowId> <nodeName> --yes --json` — Remove a node
+- `imbrace workflow node add-raw <flowId> --op-file <path>` — Apply raw flow operation. Use for advanced node types (`ROUTER`, `LOOP_ON_ITEMS`, `CODE`) that `node add` doesn't expose. Body shape: `{ type: "ADD_ACTION" \| "UPDATE_ACTION" \| "UPDATE_TRIGGER" \| "DELETE_ACTION", request: {...} }`. Also accepts `--op '<inline JSON>'` or `--stdin`.
 
-**Run history (already implemented — Sprint 1):**
+**Run history:**
 
 - `imbrace workflow runs --json` — List recent runs
 - `imbrace workflow run-detail <runId> --json` — Get run details (status, failed step, logs)
 
-**⏳ Sprint 3 — NOT YET IMPLEMENTED.** The following commands are spec'd but not coded yet. Calling them will return `command not found`. They are planned for the next iteration:
+**Connections (OAuth / API keys for external services):**
 
-```
-# Connections (OAuth / API keys for external services)
-imbrace workflow conn list / create --piece <name> --type SECRET_TEXT --value "<key>" / delete <connId> --yes
+- `imbrace workflow conn list --json` — List saved connections
+- `imbrace workflow conn get <connId> --json` — Get details of a single connection
+- `imbrace workflow conn create --piece <name> --type <T> --value "<token>" --json` — Save credential. `--type`: `SECRET_TEXT` | `OAUTH2` | `CLOUD_OAUTH2` | `BASIC_AUTH` | `CUSTOM_AUTH`
+- `imbrace workflow conn delete <connId> --yes` — Delete a connection
 
-# Lifecycle
-imbrace workflow publish <flowId>
-imbrace workflow enable <flowId>
-imbrace workflow disable <flowId>
+**Folders (organize flows — UI calls them "Categories"):**
 
-# Trigger flow with payload
-imbrace workflow run <flowId> --payload '{...}'         # async
-imbrace workflow run <flowId> --payload '{...}' --sync  # wait for result
-```
+- `imbrace workflow folder list --json` — List all folders
+- `imbrace workflow folder get <folderId> --json` — Folder details
+- `imbrace workflow folder create --name "Sales" --json` — Create (auto-resolves projectId)
+- `imbrace workflow folder update <folderId> --name "Renamed" --json` — Rename
+- `imbrace workflow folder delete <folderId> --yes` — Delete (flows inside become unfiled, NOT deleted)
 
-Until Sprint 3 ships, use the [UI builder](https://cloud.imbrace.co/workflow-v2) for connections / publish / trigger.
+The platform auto-creates 4 system folders that show up as Categories in the UI. Use `workflow folder list` to discover their IDs:
+
+| UI Category | Backend folder name | Purpose |
+|---|---|---|
+| `Channel Workflow` | `Channel Workflow` | Messaging / channel automation |
+| `Board Automation` | `Board Automation` | Triggered by data-board events; flows usually use the `automate-data-board` action with a `boardId` |
+| `AI Agent Skills` | `AI Agent Capabilities` | Skills callable by AI agents |
+| `Others` | `Others` | Default catch-all |
+
+To make a flow appear in a UI Category, place it in the matching system folder via `workflow create --folder-id <id>` or `workflow move <flowId> --folder-id <id>`. Flows created with no folder land in "All flows" only (not in any Category).
+
+**MCP servers (Model Context Protocol — let AI agents call piece tools):**
+
+- `imbrace workflow mcp list --json` — List MCP servers for the project
+- `imbrace workflow mcp get <mcpId> --json` — Server details (token NOT shown for security)
+- `imbrace workflow mcp create --name "My MCP" --json` — Create. **Token is shown once at creation — save it immediately.**
+- `imbrace workflow mcp rotate-token <mcpId> --yes` — Issue a new token. Old token stops working immediately.
+- `imbrace workflow mcp delete <mcpId> --yes` — Delete the server
+
+**Lifecycle:**
+
+- `imbrace workflow publish <flowId>` — Lock current draft as published version (REQUIRED before enable)
+- `imbrace workflow enable <flowId>` — Enable auto-trigger
+- `imbrace workflow disable <flowId>` — Stop auto-trigger (keeps published version)
+
+**Trigger flow manually:**
+
+- `imbrace workflow run <flowId> --payload '{...}' --json` — Trigger async (fire-and-forget)
+- `imbrace workflow run <flowId> --payload '{...}' --sync --json` — Trigger and wait. ⚠️ Sync polling may time out at ~30s even when the run finishes faster — fall back to `imbrace workflow runs` + `run-detail <runId>` to verify.
+
+**Order matters:** create flow → add nodes → **publish** → **enable** → run. Trying to `enable` before `publish` returns 500 "publishedFlowVersionId is required".
 
 ### Workflow flags
 
@@ -295,12 +356,104 @@ A node's `type` field determines its role in the flow:
 | `PIECE_TRIGGER` | "When does the flow run" — Slack message, webhook, cron, ... | ✅ `node add --type trigger` |
 | `PIECE` | "What runs after" — send Slack, ask AI, HTTP request, ... | ✅ `node add --type action` |
 | `EMPTY` | Placeholder before a real trigger is set (default after `workflow create`) | ✅ Read-only |
-| `BRANCH` | If/else logic | ❌ Not supported via CLI flags — use UI builder |
-| `ROUTER` | Multi-condition switch | ❌ Use UI builder |
-| `LOOP_ON_ITEMS` | Loop over an array | ❌ Use UI builder |
-| `CODE` | Inline JavaScript | ❌ Use UI builder |
+| `ROUTER` | Multi-condition switch (replaces legacy BRANCH) | ✅ `node add-raw` |
+| `LOOP_ON_ITEMS` | Loop over an array | ✅ `node add-raw` |
+| `CODE` | Inline JavaScript | ✅ `node add-raw` |
 
-Most flows use only `PIECE_TRIGGER` + `PIECE` — that covers ~85% of use cases. The other types require complex JSON shapes that are easier to build in the UI.
+Most flows use only `PIECE_TRIGGER` + `PIECE`. For the other 3 types use `node add-raw` with a full Activepieces operation payload — see shapes below.
+
+**Constraints when composing advanced nodes:**
+1. `LOOP_ON_ITEMS` and `CODE` must have a `parentStep` of type `trigger` or `PIECE`. Setting parent to a `ROUTER` (or another LOOP) returns 400 `Router step parent undefined not found`. To put a LOOP/CODE inside a router branch, build the inner action as part of the ROUTER's `children` array, not as a separate ADD_ACTION.
+2. `node list` only walks the linear `trigger → nextAction → nextAction` chain. Children of `ROUTER` (in `children: []`) and the body of `LOOP_ON_ITEMS` (in `firstLoopAction`) are stored server-side but not displayed by the flat list. Use `workflow get <flowId> --json` to see the full nested tree.
+
+**Gotchas when updating live flows:**
+- **Flow lock** — if the user has the flow open in their browser, CLI updates may be rejected with `"edited at the last minute, try again later"` or silently overwritten when the UI auto-saves. Ask the user to close the flow editor tab before bulk-updating via CLI; verify with `workflow get --json` that your changes stuck.
+- **AI Connector `assistant-request` prompt field** — the `prompt` input is a NESTED object, not a plain string. The UI form binds to `input.prompt.prompt`. Plain string values like `input.prompt = "text"` are accepted by the API but the UI renders the field as empty. Always send `{ "prompt": { "prompt": "actual text" } }`. The separate `custom_instructions` field IS a plain string and maps to the UI's "Custom Instructions" section.
+
+### Raw operation shapes for advanced nodes
+
+For `ROUTER`, `LOOP_ON_ITEMS`, `CODE` use `imbrace workflow node add-raw <flowId> --op-file <path>`. The op file contains `{ type, request }` — the full Activepieces flow-operation body. Examples:
+
+**ROUTER** — multi-condition switch:
+```json
+{
+  "type": "ADD_ACTION",
+  "request": {
+    "parentStep": "trigger",
+    "action": {
+      "name": "step_1",
+      "type": "ROUTER",
+      "displayName": "Check priority",
+      "settings": {
+        "branches": [
+          {
+            "branchName": "High",
+            "branchType": "CONDITION",
+            "conditions": [[{
+              "operator": "TEXT_EXACTLY_MATCHES",
+              "firstValue": "{{trigger.body.priority}}",
+              "secondValue": "high",
+              "caseSensitive": false
+            }]]
+          },
+          { "branchName": "Default", "branchType": "FALLBACK" }
+        ],
+        "executionType": "EXECUTE_FIRST_MATCH",
+        "sampleData": {}
+      },
+      "children": [null, null],
+      "valid": true
+    }
+  }
+}
+```
+
+**LOOP_ON_ITEMS** — loop over an array. `parentStep` must be a `trigger` or `PIECE` (not a ROUTER):
+```json
+{
+  "type": "ADD_ACTION",
+  "request": {
+    "parentStep": "trigger",
+    "action": {
+      "name": "step_1",
+      "type": "LOOP_ON_ITEMS",
+      "displayName": "Loop users",
+      "settings": { "items": "{{trigger.body.users}}" },
+      "firstLoopAction": null,
+      "valid": true
+    }
+  }
+}
+```
+
+**CODE** — inline JavaScript:
+```json
+{
+  "type": "ADD_ACTION",
+  "request": {
+    "parentStep": "step_1",
+    "action": {
+      "name": "step_2",
+      "type": "CODE",
+      "displayName": "Transform",
+      "settings": {
+        "input": { "x": "{{trigger.body.value}}" },
+        "sourceCode": {
+          "code": "export const code = async (inputs) => ({ doubled: inputs.x * 2 });",
+          "packageJson": "{\"dependencies\":{}}"
+        }
+      },
+      "valid": true
+    }
+  }
+}
+```
+
+**Common operation types** for `add-raw`:
+- `ADD_ACTION` — add a new node (with `parentStep` + `action` shape above)
+- `UPDATE_ACTION` — replace an existing node's settings (request: `{ name, type, displayName, settings, valid }`)
+- `UPDATE_TRIGGER` — replace the trigger node
+- `DELETE_ACTION` — remove a node (request: `{ names: ["step_X"] }`)
 
 ### Connection types
 
@@ -372,16 +525,27 @@ imbrace data-board export-csv --board-id <boardId> --out ./leads.csv
 
 ### AI Agent
 ```bash
-# List all agents
+# Discover what's available
 imbrace ai-agent list --json
+imbrace ai-agent list-providers --json
+imbrace ai-agent list-models --provider-id system --json
+imbrace ai-agent list-folders --json
 
-# Create an agent
+# Create an agent (minimal)
 imbrace ai-agent create --name "Sales Bot" --instructions "You are a sales assistant" --json
 
-# Update agent instructions
-imbrace ai-agent update <agentId> --instructions "Updated instructions" --json
+# Create with custom provider + Knowledge Hub folder
+imbrace ai-agent create --name "RAG Bot" \
+  --instructions "Answer using the provided knowledge" \
+  --provider-id e2629292-7e9f-4d55-ba18-6827747eab33 \
+  --model gpt-4o-mini \
+  --folder-ids 69bb82faa2cc764639bc6bdb \
+  --json
 
-# Delete agent
+# Update — partial (other fields preserved)
+imbrace ai-agent update <agentId> --instructions "Updated" --temperature 0.7 --json
+
+# Delete
 imbrace ai-agent delete <agentId> --yes --json
 ```
 
@@ -396,10 +560,13 @@ imbrace workflow piece list --search slack --json
 imbrace workflow piece detail @activepieces/piece-slack --json
 imbrace workflow piece detail @activepieces/piece-ai-connector --json
 
-# 2. ⏳ Save Slack token (one-time per workspace)  — Sprint 3 NOT YET IMPLEMENTED
-#    For now, create the connection via UI: cloud.imbrace.co/workflow-v2 → Connections
-#    Future CLI:
-#    imbrace workflow conn create --piece @activepieces/piece-slack --type SECRET_TEXT --value "xoxb-..." --json
+# 2. Save Slack token (one-time per workspace)  ✅ Sprint 3
+imbrace workflow conn create \
+  --piece @activepieces/piece-slack \
+  --type SECRET_TEXT \
+  --value "xoxb-actual-token" \
+  --json
+# → note conn._id
 
 # 3. Create empty flow  ✅ Sprint 1
 imbrace workflow create --name "Slack AI Reply Bot" --json
@@ -436,16 +603,16 @@ imbrace workflow node add <flowId> \
 # 7. Verify the node tree  ✅ Sprint 2
 imbrace workflow node list <flowId> --json
 
-# 8. ⏳ Test run with sample payload  — Sprint 3 NOT YET IMPLEMENTED
-#    For now: trigger via UI builder's "Test flow" button.
-#    Future CLI:
-#    imbrace workflow run <flowId> --sync --payload '{"text":"...","channel":"C0XXX","ts":"1234.5"}' --json
+# 8. Test run with sample payload  ✅ Sprint 3
+#    --sync may time out (~30s) even if the run finishes faster.
+#    If it times out, use 'workflow runs' + 'run-detail' to fetch the result.
+imbrace workflow run <flowId> --sync \
+  --payload '{"text":"How do I reset my password?","channel":"C0XXXXX","ts":"1234.5"}' \
+  --json
 
-# 9. ⏳ Publish & enable  — Sprint 3 NOT YET IMPLEMENTED
-#    For now: click "Publish" + toggle "Enabled" in UI builder.
-#    Future CLI:
-#    imbrace workflow publish <flowId> --json
-#    imbrace workflow enable <flowId> --json
+# 9. Publish & enable so it runs automatically  ✅ Sprint 3
+imbrace workflow publish <flowId> --json
+imbrace workflow enable <flowId> --json
 ```
 
 ## Adding a New Service

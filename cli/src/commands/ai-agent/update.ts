@@ -39,6 +39,12 @@ export default class AiAgentUpdate extends BaseCommand {
     }),
     "guardrail-id": Flags.string({ description: "Guardrail ID (set to empty string to remove)" }),
     "preload-information": Flags.string({ description: "Preload information" }),
+    // Knowledge Support
+    "folder-ids": Flags.string({ description: "Comma-separated Knowledge Hub folder IDs" }),
+    "default-folder-id": Flags.string({ description: "Default folder ID" }),
+    "knowledge-hubs": Flags.string({ description: "Comma-separated Knowledge Hub IDs" }),
+    "board-ids": Flags.string({ description: "Comma-separated Document Model (data board) IDs" }),
+    "file-ids": Flags.string({ description: "Comma-separated file IDs" }),
     // Runtime toggles
     "show-thinking": Flags.boolean({ description: "Show thinking process", allowNo: true }),
     streaming: Flags.boolean({ description: "Stream response", allowNo: true }),
@@ -68,6 +74,11 @@ export default class AiAgentUpdate extends BaseCommand {
     if (flags.category) body.category = [flags.category];
     if (flags["guardrail-id"] !== undefined) body.guardrail_id = flags["guardrail-id"];
     if (flags["preload-information"] !== undefined) body.preload_information = flags["preload-information"];
+    if (flags["folder-ids"] !== undefined) body.folder_ids = flags["folder-ids"].split(",").map(s => s.trim()).filter(Boolean);
+    if (flags["default-folder-id"] !== undefined) body.default_folder_id = flags["default-folder-id"];
+    if (flags["knowledge-hubs"] !== undefined) body.knowledge_hubs = flags["knowledge-hubs"].split(",").map(s => s.trim()).filter(Boolean);
+    if (flags["board-ids"] !== undefined) body.board_ids = flags["board-ids"].split(",").map(s => s.trim()).filter(Boolean);
+    if (flags["file-ids"] !== undefined) body.file_ids = flags["file-ids"].split(",").map(s => s.trim()).filter(Boolean);
     if (flags["show-thinking"] !== undefined) body.show_thinking_process = flags["show-thinking"];
     if (flags.streaming !== undefined) body.streaming = flags.streaming;
     if (flags["use-memory"] !== undefined) body.use_memory = flags["use-memory"];
