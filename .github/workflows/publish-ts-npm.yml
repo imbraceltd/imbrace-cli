@@ -1,0 +1,61 @@
+name: Publish CLI to npm
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+  
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create GitHub Release
+      id-token: write   # npm provenance
+
+    defaults:
+      run:
+        working-directory: ./cli
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: cli/package-lock.json
+
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - run: npm install
+
+      - run: npm run build
+
+      - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Pack tarball for release asset
+        run: npm pack
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: |
+            Published [`@imbrace/cli@${{ github.ref_name }}`](https://www.npmjs.com/package/@imbrace/cli) to npm.
+
+            ## Assets
+            - `*.tgz` — exact npm package tarball (verifiable via provenance attestation on npmjs.com)
+            - `Source code (zip/tar.gz)` — auto-attached by GitHub from the tag commit
+          files: cli/*.tgz
+          draft: false
+          prerelease: false
