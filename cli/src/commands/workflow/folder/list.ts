@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
 
 export default class WorkflowFolderList extends BaseCommand {
   static description = "List all folders (used to organize workflows)";
@@ -18,17 +18,19 @@ export default class WorkflowFolderList extends BaseCommand {
     const { flags } = await this.parse(WorkflowFolderList);
 
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>("/workflow/folder/list");
+      const client = getClient();
+      const res = await client.workflows.listFolders();
+      const data: any[] = (res as any)?.data ?? [];
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} folder(s):\n`);
+      this.log(`\n  Found ${data.length} folder(s):\n`);
       this.log("  ID                       NAME");
       this.log("  ─────────────────────────────────────────────────────");
-      for (const f of res.data || []) {
+      for (const f of data) {
         const id = (f.id || "").padEnd(24);
         const name = f.displayName || "";
         this.log(`  ${id} ${name}`);

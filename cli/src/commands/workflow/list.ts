@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class WorkflowList extends BaseCommand {
   static description = "List all workflows (Activepieces flows)";
@@ -23,19 +23,22 @@ export default class WorkflowList extends BaseCommand {
   async run() {
     const { flags } = await this.parse(WorkflowList);
 
-    const qs = flags["folder-id"] ? `?folderId=${encodeURIComponent(flags["folder-id"])}` : "";
+    const params = flags["folder-id"] ? { folderId: flags["folder-id"] } : undefined;
+
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>(`/workflow/list${qs}`);
+      const client = getClient();
+      const res = await client.workflows.listFlows(params as any);
+      const data: any[] = (res as any)?.data ?? [];
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} workflow(s):\n`);
+      this.log(`\n  Found ${data.length} workflow(s):\n`);
       this.log("  ID                       NAME                                 STATUS");
       this.log("  ────────────────────────────────────────────────────────────────────");
-      for (const flow of res.data || []) {
+      for (const flow of data) {
         const id = (flow.id || "").padEnd(24);
         const name = (flow.version?.displayName || "").padEnd(36);
         const status = flow.status || "";

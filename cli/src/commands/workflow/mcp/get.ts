@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
 
 export default class WorkflowMcpGet extends BaseCommand {
   static description = "Get details of a single MCP server (token is NOT shown — use rotate-token to get a new one)";
@@ -24,14 +24,15 @@ export default class WorkflowMcpGet extends BaseCommand {
     const mcpId = args.mcpId ?? (flags.json ? this.error("MCP ID is required") : await input({ message: "MCP server ID:" }));
 
     try {
-      const res = await apiRequest<{ ok: boolean; data: any }>(`/workflow/mcp/${mcpId}`);
+      const client = getClient();
+      const data = await client.workflows.getMcpServer(mcpId);
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, data }, null, 2));
         return;
       }
 
-      const m = res.data || {};
+      const m: any = data || {};
       this.log(`\n  ID:           ${m.id || ""}`);
       this.log(`  Name:         ${m.name || ""}`);
       this.log(`  Project ID:   ${m.projectId || ""}`);

@@ -1,7 +1,7 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input, confirm } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class DataBoardCreate extends BaseCommand {
   static description = "Create a new data board";
@@ -38,18 +38,17 @@ export default class DataBoardCreate extends BaseCommand {
     }
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        "/data-board/create",
-        { method: "POST", body }
-      );
+      const client = getClient();
+      const data: any = await client.boards.create(body as any);
+      const message = `Board "${name}" created`;
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}`);
-      if (res.data?._id) this.log(`   ID: ${res.data._id}`);
+      this.log(`\n✅ ${message}`);
+      if (data?._id) this.log(`   ID: ${data._id}`);
       this.log("");
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);

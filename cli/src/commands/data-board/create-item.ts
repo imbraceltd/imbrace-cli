@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class DataBoardCreateItem extends BaseCommand {
   static description =
@@ -29,6 +29,8 @@ export default class DataBoardCreateItem extends BaseCommand {
 
     const boardId = args.boardId ?? (await input({ message: "Board ID:" }));
 
+    const client = getClient();
+
     let fields: any[];
     if (flags.fields) {
       try {
@@ -37,10 +39,8 @@ export default class DataBoardCreateItem extends BaseCommand {
         this.error("--fields must be valid JSON array");
       }
     } else {
-      const boardRes = await apiRequest<{ ok: boolean; data: any[] }>(
-        `/data-board/${boardId}/fields`,
-      );
-      const boardFields: any[] = boardRes.data || [];
+      const board = await client.boards.get(boardId) as any;
+      const boardFields: any[] = board?.fields || board?.data?.fields || [];
       if (!boardFields.length)
         this.error("Board has no fields. Run: imbrace data-board create-field");
 
@@ -56,17 +56,15 @@ export default class DataBoardCreateItem extends BaseCommand {
     }
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        `/data-board/${boardId}/items`,
-        { method: "POST", body: { fields } },
-      );
+      const data: any = await client.boards.createItem(boardId, { fields } as any);
+      const message = "Item created";
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
-      this.log(`\n✅ ${res.message}`);
-      if (res.data?._id) this.log(`   ID: ${res.data._id}`);
+      this.log(`\n✅ ${message}`);
+      if (data?._id) this.log(`   ID: ${data._id}`);
       this.log("");
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);

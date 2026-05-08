@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { confirm } from "@inquirer/prompts";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
 
 export default class WorkflowNodeDelete extends BaseCommand {
   static description = "Delete an action node from a workflow (cannot delete trigger — replace it via `node add --type trigger`)";
@@ -32,18 +32,24 @@ export default class WorkflowNodeDelete extends BaseCommand {
       }
     }
 
+    if (args.nodeName === "trigger") {
+      this.error("Cannot delete trigger node — replace it with `node add --type trigger ...` instead");
+    }
+
     try {
-      const res = await apiRequest<{ ok: boolean; message: string }>(
-        `/workflow/${args.flowId}/nodes/${args.nodeName}`,
-        { method: "DELETE" },
-      );
+      const client = getClient();
+      const data = await client.workflows.applyFlowOperation(args.flowId, {
+        type: "DELETE_ACTION",
+        request: { names: [args.nodeName] },
+      } as any);
+      const message = `Node "${args.nodeName}" deleted`;
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}\n`);
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

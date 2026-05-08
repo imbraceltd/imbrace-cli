@@ -1,7 +1,8 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../../http.js";
+import { gatewayFetch } from "../../../lib/gateway.js";
+import { normalizePieceName } from "../../../lib/workflow.js";
 
 export default class WorkflowPieceDetail extends BaseCommand {
   static description = "Get full piece schema (actions + triggers + input fields)";
@@ -26,14 +27,14 @@ export default class WorkflowPieceDetail extends BaseCommand {
     const piece = args.piece ?? (flags.json ? this.error("piece is required") : await input({ message: "Piece name (e.g. slack):" }));
 
     try {
-      const res = await apiRequest<{ ok: boolean; data: any }>(`/workflow/piece/detail?name=${encodeURIComponent(piece)}`);
+      const data = await gatewayFetch<any>(`/activepieces/v1/pieces/${normalizePieceName(piece)}`);
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, data }, null, 2));
         return;
       }
 
-      const d = res.data || {};
+      const d: any = data || {};
       this.log(`\n  ${d.displayName} (${d.name})`);
       this.log(`  ${d.description || ""}`);
       this.log(`  Version: ${d.version}    Categories: ${(d.categories || []).join(", ")}`);

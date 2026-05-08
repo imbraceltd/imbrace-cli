@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { readFileSync } from "node:fs";
 import { BaseCommand } from "../../../base-command.js";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
 
 export default class WorkflowNodeAddRaw extends BaseCommand {
   static description = [
@@ -57,17 +57,16 @@ export default class WorkflowNodeAddRaw extends BaseCommand {
     }
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        `/workflow/${args.flowId}/nodes/raw`,
-        { method: "POST", body },
-      );
+      const client = getClient();
+      const data = await client.workflows.applyFlowOperation(args.flowId, body);
+      const message = `Operation "${body.type}" applied`;
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}\n`);
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

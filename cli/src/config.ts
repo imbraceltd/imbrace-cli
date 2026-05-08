@@ -4,19 +4,16 @@ interface ImbraceConfig {
   credential?: string;
   method?: "api-key" | "password";
   email?: string;
-  apiUrl?: string;
 }
 
 /**
- * Saves credentials to ~/.config/imbrace/config.json
- * Uses `conf` package — cross-platform, auto-create
+ * Saves credentials via the `conf` package — cross-platform, auto-create.
+ * Path depends on OS:
+ *   macOS:   ~/Library/Preferences/imbrace-nodejs/config.json
+ *   Linux:   ~/.config/imbrace-nodejs/config.json
+ *   Windows: %APPDATA%/imbrace-nodejs/Config/config.json
  */
-export const config = new Conf<ImbraceConfig>({
-  projectName: "imbrace",
-  defaults: {
-    apiUrl: "http://localhost:3456",
-  },
-});
+export const config = new Conf<ImbraceConfig>({ projectName: "imbrace" });
 
 export function saveCredential(opts: {
   credential: string;
@@ -32,10 +29,6 @@ export function getCredential(): string | undefined {
   return config.get("credential");
 }
 
-export function getApiUrl(): string {
-  return config.get("apiUrl") || "http://localhost:3456";
-}
-
 export function clearCredential() {
   config.delete("credential");
   config.delete("method");
@@ -47,6 +40,5 @@ export function getAuthInfo() {
     credential: config.get("credential"),
     method: config.get("method"),
     email: config.get("email"),
-    apiUrl: config.get("apiUrl"),
   };
 }

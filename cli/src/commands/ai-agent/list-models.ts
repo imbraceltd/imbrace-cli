@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { listProviderModels } from "../../lib/ai-agent.js";
 
 export default class AiAgentListModels extends BaseCommand {
   static description = "List LLM models available for a specific provider";
@@ -23,17 +23,15 @@ export default class AiAgentListModels extends BaseCommand {
     const { flags } = await this.parse(AiAgentListModels);
 
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: string[] }>(
-        `/ai-agent/providers/${encodeURIComponent(flags["provider-id"])}/models`,
-      );
+      const data = await listProviderModels(flags["provider-id"]);
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} model(s) for provider "${flags["provider-id"]}":\n`);
-      for (const m of res.data || []) {
+      this.log(`\n  Found ${data.length} model(s) for provider "${flags["provider-id"]}":\n`);
+      for (const m of data) {
         this.log(`    ${m}`);
       }
       this.log("");

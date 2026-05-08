@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class WorkflowRuns extends BaseCommand {
   static description = "List recent workflow runs (execution history)";
@@ -19,19 +19,19 @@ export default class WorkflowRuns extends BaseCommand {
     const { flags } = await this.parse(WorkflowRuns);
 
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>(
-        `/workflow/runs?limit=${flags.limit}`,
-      );
+      const client = getClient();
+      const res = await client.workflows.listRuns({ limit: flags.limit } as any) as any;
+      const data: any[] = res?.data ?? [];
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} run(s):\n`);
+      this.log(`\n  Found ${data.length} run(s):\n`);
       this.log("  RUN ID                   FLOW ID                  STATUS       DURATION");
       this.log("  ───────────────────────────────────────────────────────────────────────");
-      for (const run of res.data || []) {
+      for (const run of data) {
         const id = (run.id || "").padEnd(24);
         const flowId = (run.flowId || "").padEnd(24);
         const status = (run.status || "").padEnd(12);

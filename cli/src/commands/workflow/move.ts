@@ -1,6 +1,6 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class WorkflowMove extends BaseCommand {
   static description = "Move a workflow into a folder (category). Pass --folder-id NULL to make it unfiled.";
@@ -29,17 +29,20 @@ export default class WorkflowMove extends BaseCommand {
     const folderId = flags["folder-id"] === "NULL" ? null : flags["folder-id"];
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        `/workflow/${encodeURIComponent(args.id)}/move`,
-        { method: "POST", body: { folderId } },
-      );
+      const client = getClient();
+      const data = await client.workflows.applyFlowOperation(args.id, {
+        type: "CHANGE_FOLDER",
+        request: { folderId },
+      } as any);
+      const target = folderId ?? "(unfiled)";
+      const message = `Workflow moved to ${target}`;
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}\n`);
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

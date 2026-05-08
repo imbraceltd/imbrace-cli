@@ -1,7 +1,7 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { createAgent } from "../../lib/ai-agent.js";
 
 export default class AiAgentCreate extends BaseCommand {
   static description = "Create a new AI agent";
@@ -83,23 +83,21 @@ export default class AiAgentCreate extends BaseCommand {
     };
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        "/ai-agent/create",
-        { method: "POST", body },
-      );
+      const data = await createAgent(body as any);
+      const message = `AI Agent "${name}" created`;
 
       if (flags["id-only"]) {
-        this.log(res.data?._id ?? "");
+        this.log((data as any)?._id ?? "");
         return;
       }
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}`);
-      if (res.data?._id) this.log(`   ID: ${res.data._id}`);
+      this.log(`\n✅ ${message}`);
+      if ((data as any)?._id) this.log(`   ID: ${(data as any)._id}`);
       this.log("");
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);

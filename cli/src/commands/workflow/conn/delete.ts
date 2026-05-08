@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { confirm } from "@inquirer/prompts";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
 
 export default class WorkflowConnDelete extends BaseCommand {
   static description = "Delete a connection";
@@ -32,17 +32,16 @@ export default class WorkflowConnDelete extends BaseCommand {
     }
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string }>(
-        `/workflow/conn/${args.connId}`,
-        { method: "DELETE" },
-      );
+      const client = getClient();
+      await client.workflows.deleteConnection(args.connId);
+      const message = "Connection deleted";
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}\n`);
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

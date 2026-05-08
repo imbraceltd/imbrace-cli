@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { updateAgent } from "../../lib/ai-agent.js";
 
 export default class AiAgentUpdate extends BaseCommand {
   static description = "Update an AI agent. Pass any subset of flags — others stay unchanged.";
@@ -88,17 +88,15 @@ export default class AiAgentUpdate extends BaseCommand {
     }
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        `/ai-agent/${id}`,
-        { method: "PUT", body },
-      );
+      const data = await updateAgent(id, body);
+      const message = "AI Agent updated";
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}\n`);
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

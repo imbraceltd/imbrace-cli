@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class AiAgentListFiles extends BaseCommand {
   static description = "List files inside a Knowledge Hub folder (use IDs with --file-ids on create/update)";
@@ -22,19 +22,19 @@ export default class AiAgentListFiles extends BaseCommand {
     const { flags } = await this.parse(AiAgentListFiles);
 
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>(
-        `/ai-agent/folders/${encodeURIComponent(flags["folder-id"])}/files`,
-      );
+      const client = getClient();
+      const r = await client.boards.searchFiles({ folderId: flags["folder-id"] }) as any;
+      const data: any[] = (Array.isArray(r) ? r : r?.data) || [];
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} file(s) in folder "${flags["folder-id"]}":\n`);
+      this.log(`\n  Found ${data.length} file(s) in folder "${flags["folder-id"]}":\n`);
       this.log("  ID                                       NAME                                STATUS");
       this.log("  ─────────────────────────────────────────────────────────────────────────────────────");
-      for (const f of res.data || []) {
+      for (const f of data) {
         const id = (f._id || f.id || "").padEnd(40);
         const name = (f.original_name || f.name || "").padEnd(36);
         const status = f.embedding_status || f.status || "";

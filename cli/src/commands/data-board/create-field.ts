@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input, select } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 const FIELD_TYPES = [
   "ShortText", "LongText", "Number", "Date",
@@ -40,13 +40,12 @@ export default class DataBoardCreateField extends BaseCommand {
     });
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        `/data-board/${boardId}/fields`,
-        { method: "POST", body: { name, type } }
-      );
+      const client = getClient();
+      const data: any = await client.boards.createField(boardId, { name, type } as any);
+      const message = `Field "${name}" created`;
 
-      if (flags.json) { this.log(JSON.stringify(res, null, 2)); return; }
-      this.log(`\n✅ ${res.message}\n`);
+      if (flags.json) { this.log(JSON.stringify({ ok: true, message, data }, null, 2)); return; }
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

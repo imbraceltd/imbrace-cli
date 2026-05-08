@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
 
 export default class WorkflowConnList extends BaseCommand {
   static description = "List all connections (saved credentials for external services)";
@@ -18,17 +18,19 @@ export default class WorkflowConnList extends BaseCommand {
     const { flags } = await this.parse(WorkflowConnList);
 
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>("/workflow/conn/list");
+      const client = getClient();
+      const res = await client.workflows.listConnections() as any;
+      const data: any[] = res?.data ?? [];
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} connection(s):\n`);
+      this.log(`\n  Found ${data.length} connection(s):\n`);
       this.log("  ID                              DISPLAY NAME                  PIECE                       TYPE");
       this.log("  ─────────────────────────────────────────────────────────────────────────────────────────────");
-      for (const c of res.data || []) {
+      for (const c of data) {
         const id = (c.id || "").padEnd(31);
         const name = (c.displayName || "").padEnd(28);
         const piece = (c.pieceName || "").padEnd(28);

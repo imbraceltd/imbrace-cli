@@ -1,6 +1,6 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class WorkflowRun extends BaseCommand {
   static description = "Manually trigger a workflow with a payload. Use --sync to wait for completion.";
@@ -33,22 +33,21 @@ export default class WorkflowRun extends BaseCommand {
       }
     }
 
-    const qs = flags.sync ? "?sync=true" : "";
-
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; mode: string; data: any }>(
-        `/workflow/${args.flowId}/run${qs}`,
-        { method: "POST", body: { payload } },
-      );
+      const client = getClient();
+      const data = flags.sync
+        ? await client.workflows.triggerFlowSync(args.flowId, payload)
+        : await client.workflows.triggerFlow(args.flowId, payload);
+      const message = flags.sync ? "Workflow run completed" : "Workflow run triggered";
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, mode: flags.sync ? "sync" : "async", data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}`);
-      if (flags.sync && res.data) {
-        this.log(`\n  Result:\n${JSON.stringify(res.data, null, 2).split("\n").map(l => "    " + l).join("\n")}`);
+      this.log(`\n✅ ${message}`);
+      if (flags.sync && data) {
+        this.log(`\n  Result:\n${JSON.stringify(data, null, 2).split("\n").map(l => "    " + l).join("\n")}`);
       } else if (!flags.sync) {
         this.log(`\n  (async — use 'imbrace workflow runs' to check execution status)`);
       }
