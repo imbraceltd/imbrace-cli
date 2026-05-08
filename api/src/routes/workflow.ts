@@ -51,22 +51,29 @@ function buildPropertySettings(input: Record<string, any>): Record<string, any> 
 }
 
 // Walk the trigger.nextAction chain into a flat array of nodes.
+// Also traverses ROUTER.children[] and LOOP.firstLoopAction so update/delete
+// can target nodes nested inside branches or loop bodies.
 function flattenNodes(trigger: any): any[] {
   const nodes: any[] = [];
-  let cur = trigger;
-  while (cur) {
+  function visit(node: any) {
+    if (!node) return;
     nodes.push({
-      name: cur.name,
-      type: cur.type,
-      displayName: cur.displayName,
-      pieceName: cur.settings?.pieceName,
-      actionName: cur.settings?.actionName,
-      triggerName: cur.settings?.triggerName,
-      input: cur.settings?.input,
-      valid: cur.valid,
+      name: node.name,
+      type: node.type,
+      displayName: node.displayName,
+      pieceName: node.settings?.pieceName,
+      actionName: node.settings?.actionName,
+      triggerName: node.settings?.triggerName,
+      input: node.settings?.input,
+      valid: node.valid,
     });
-    cur = cur.nextAction;
+    if (node.nextAction) visit(node.nextAction);
+    for (const ch of (node.children || [])) {
+      if (ch) visit(ch);
+    }
+    if (node.firstLoopAction) visit(node.firstLoopAction);
   }
+  visit(trigger);
   return nodes;
 }
 
