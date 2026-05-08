@@ -347,6 +347,10 @@ A node's `type` field determines its role in the flow:
 
 Most flows use only `PIECE_TRIGGER` + `PIECE`. For the other 3 types use `node add-raw` with a full Activepieces operation payload — see shapes below.
 
+**Constraints when composing advanced nodes:**
+1. `LOOP_ON_ITEMS` and `CODE` must have a `parentStep` of type `trigger` or `PIECE`. Setting parent to a `ROUTER` (or another LOOP) returns 400 `Router step parent undefined not found`. To put a LOOP/CODE inside a router branch, build the inner action as part of the ROUTER's `children` array, not as a separate ADD_ACTION.
+2. `node list` only walks the linear `trigger → nextAction → nextAction` chain. Children of `ROUTER` (in `children: []`) and the body of `LOOP_ON_ITEMS` (in `firstLoopAction`) are stored server-side but not displayed by the flat list. Use `workflow get <flowId> --json` to see the full nested tree.
+
 ### Raw operation shapes for advanced nodes
 
 For `ROUTER`, `LOOP_ON_ITEMS`, `CODE` use `imbrace workflow node add-raw <flowId> --op-file <path>`. The op file contains `{ type, request }` — the full Activepieces flow-operation body. Examples:
