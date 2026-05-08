@@ -42,11 +42,16 @@ aiAgentRoutes.get("/providers", async (c) => {
       fetchSystemModels(credential),
     ]);
     const arr = (r?.data || r) as any[];
+    // IMPORTANT: provider has TWO IDs — `_id` (MongoDB ObjectId) and
+    // `provider_id` (UUID). The UI dropdown matches on `provider_id`. Always
+    // expose `provider_id` as the canonical id so agents created via CLI
+    // render correctly in the UI.
     const data = [
-      { _id: "system", id: "system", name: "system", type: "system", is_default: true, models: systemModels },
+      { id: "system", _id: "system", provider_id: "system", name: "system", type: "system", is_default: true, models: systemModels },
       ...arr.map((p) => ({
+        id: p.provider_id || p._id,
         _id: p._id,
-        id: p._id,
+        provider_id: p.provider_id || p._id,
         name: p.name,
         type: p.type,
         is_default: false,
@@ -71,7 +76,8 @@ aiAgentRoutes.get("/providers/:providerId/models", async (c) => {
     }
     const r = await client.ai.listProviders() as any;
     const arr = (r?.data || r) as any[];
-    const provider = arr.find((p) => p._id === providerId || p.id === providerId);
+    // Match against either provider_id (UUID, preferred) or _id (legacy)
+    const provider = arr.find((p) => p.provider_id === providerId || p._id === providerId);
     if (!provider) return c.json({ ok: false, message: `Provider "${providerId}" not found` }, 404);
     const models = (provider.models || []).map((m: any) => typeof m === "string" ? m : m.name);
     return c.json({ ok: true, count: models.length, data: models });
