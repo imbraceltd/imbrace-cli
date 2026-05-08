@@ -126,61 +126,86 @@ An AI agent is a configured assistant (LLM + prompt + behavior) that appears as 
 
 > **All content (name, description, instructions, behavior fields) must be in English.** The slug for `workflow_name` is derived from the name; Vietnamese diacritics get stripped and produce unreadable slugs.
 
-**List / get / delete**
+**CRUD**
 
 ```bash
 imbrace ai-agent list --json
 imbrace ai-agent get <agentId> --json
+imbrace ai-agent create --name "Sales Bot" --json
+imbrace ai-agent update <agentId> --name "New Name" --json
 imbrace ai-agent delete <agentId> --yes --json
 ```
 
-**Minimal create**
+**Discovery (LLM providers + Knowledge Hub)**
 
 ```bash
-imbrace ai-agent create --name "Sales Bot" --json
+# LLM providers + models
+imbrace ai-agent list-providers --json                            # 3 providers
+imbrace ai-agent list-models --provider-id system --json          # models per provider
+
+# Knowledge Hub folders + files
+imbrace ai-agent list-folders [--search support] --json
+imbrace ai-agent list-files --folder-id <folderId> --json
 ```
 
-**Full create — all Behavior Settings populated**
+**Full create — all settings populated**
 
 ```bash
 imbrace ai-agent create \
   --name "Customer Support Specialist" \
   --description "Senior AI customer support agent for an e-commerce company" \
-  --instructions "You are a senior customer support specialist. Help customers with product questions, order tracking, and complaints. Escalate to a human for refunds over \$500, suspected fraud, or legal threats." \
+  --instructions "You are a senior customer support specialist..." \
   --personality "Friendly and professional senior customer support agent" \
-  --core-task "Answer product inquiries, help track orders, resolve complaints, recommend products" \
-  --tone "Polite, professional, warm. Empathetic when frustrated. Concise and direct." \
+  --core-task "Answer product inquiries, help track orders" \
+  --tone "Polite, professional, warm" \
   --response-length "medium" \
-  --banned-words "stupid, idiot, shut up, guarantee, promise" \
+  --banned-words "stupid, idiot" \
   --category "Support" \
-  --model gpt-4o \
+  --provider-id "e2629292-7e9f-4d55-ba18-6827747eab33" \
+  --model "gpt-4o-mini" \
+  --temperature 0.3 \
+  --folder-ids "69bb82faa2cc764639bc6bdb" \
+  --board-ids "brd_e5450d76-84d4-4c34-8b13-3d0f1873b53b" \
   --json
 ```
 
-**Update**
-
-```bash
-imbrace ai-agent update <agentId> --name "New Name" --json
-imbrace ai-agent update <agentId> --instructions "Updated prompt" --json
-```
-
-**Available flags**
+**Available flags** (`create` + `update` accept the same set; `update` preserves unchanged fields via PUT-merge)
 
 | Flag | Maps to | Notes |
 |---|---|---|
+| **Identity** | | |
 | `--name` / `-n` | `name` + `title` | Required for create |
-| `--description` / `-d` | `description` + `short_description` | Shown under title |
+| `--description` / `-d` | `description` + `short_description` | Shown under title in UI |
 | `--instructions` / `-i` | `instructions` | System prompt |
-| `--model` | `model_id` | Default `gpt-4o` |
-| `--personality` | `personality_role` | Behavior Settings tab |
-| `--core-task` | `core_task` | Behavior Settings tab |
-| `--tone` | `tone_and_style` | Behavior Settings tab |
+| **Model** | | |
+| `--model` | `model_id` | Default `Default` (system provider). Discover via `list-models`. |
+| `--provider-id` | `provider_id` | UUID, default `system`. **Use UUID — not the MongoDB `_id`.** |
+| `--mode` | `mode` | `standard` / `advanced` |
+| `--temperature` | `temperature` | 0.0–2.0, default 0.1 |
+| **Behavior Settings** | | |
+| `--personality` | `personality_role` | |
+| `--core-task` | `core_task` | |
+| `--tone` | `tone_and_style` | |
 | `--response-length` | `response_length` | `short` / `medium` / `long` |
-| `--banned-words` | `banned_words` | Comma-separated |
-| `--category` | `category` | Default `Support` |
+| `--banned-words` | `banned_words` | Comma-separated, word-level filter on output |
+| `--category` | `category` | `Support` / `Sales` / `Marketing` / `Team` / `Other` |
 | `--guardrail-id` | `guardrail_id` | Attach a guardrail |
+| `--preload-information` | `preload_information` | Static info auto-injected into context |
+| **Knowledge Support** | | |
+| `--folder-ids` | `folder_ids` | Comma-separated KH folder IDs |
+| `--default-folder-id` | `default_folder_id` | |
+| `--knowledge-hubs` | `knowledge_hubs` | Comma-separated KH IDs |
+| `--board-ids` | `board_ids` | Comma-separated data board IDs (Document Models) |
+| `--file-ids` | `file_ids` | Comma-separated file IDs |
+| **Runtime toggles** (boolean, support `--no-X`) | | |
+| `--show-thinking` | `show_thinking_process` | Default false |
+| `--streaming` | `streaming` | Default true |
+| `--use-memory` | `use_memory` | Default true |
+| **Output** | | |
 | `--yes` / `-y` | — | Skip confirm on delete |
 | `--json` | — | Machine-readable output |
+| `--id-only` | — | Print only the new agent ID (pipe-friendly) |
+| `-h` / `--help` | — | Show usage on any command |
 
 ---
 
@@ -197,50 +222,57 @@ A workflow (Activepieces) is a chain of nodes: a trigger fires, then actions run
 | `PIECE_TRIGGER` | "When does the flow run" — Slack message, webhook, cron, ... | ✅ `node add --type trigger` |
 | `PIECE` | "What runs after" — send Slack, ask AI, HTTP call, ... | ✅ `node add --type action` |
 | `EMPTY` | Placeholder before trigger is set | ✅ Read-only |
-| `BRANCH` | If/else logic | ❌ Use UI builder |
-| `ROUTER` | Multi-condition switch | ❌ Use UI builder |
-| `LOOP_ON_ITEMS` | Loop over an array | ❌ Use UI builder |
-| `CODE` | Inline JavaScript | ❌ Use UI builder |
+| `ROUTER` | Multi-condition switch (replaces legacy BRANCH) | ✅ `node add-raw` |
+| `LOOP_ON_ITEMS` | Loop over an array | ✅ `node add-raw` |
+| `CODE` | Inline JavaScript | ✅ `node add-raw` |
 
-**Sprint 1 — Flow CRUD** ✅
+**Flow CRUD + run history**
 ```bash
-imbrace workflow list --json
-imbrace workflow get <flowId> --json
-imbrace workflow create --name "My Flow" --json
-imbrace workflow delete <flowId> --yes --json
-
-# Run history
-imbrace workflow runs --json
-imbrace workflow run-detail <runId> --json
+imbrace workflow list / get <id> / create --name / delete <id> --yes
+imbrace workflow runs                                # recent runs
+imbrace workflow run-detail <runId>
 ```
 
-**Sprint 2 — Build nodes** ✅
+**Build nodes**
 ```bash
-# Discover available integrations
-imbrace workflow piece list --search slack --json
-imbrace workflow piece detail slack --only actions --json
-
-# Add nodes
-imbrace workflow node add <flowId> \
-  --type trigger --piece webhook --trigger-name catch_webhook \
-  --input '{"authType":"none","authFields":{}}' --json
-
-imbrace workflow node add <flowId> \
-  --type action --piece ai-connector --action-name ask --after trigger \
-  --input '{"prompt":"{{trigger.body.message}}","modelName":"gpt-4o"}' --json
+# Discover integrations
+imbrace workflow piece list [--search slack]
+imbrace workflow piece detail <pieceName> [--only actions|triggers]
 
 # Manage nodes
-imbrace workflow node list <flowId> --json
-imbrace workflow node update <flowId> step_1 --input '{...}' --json
-imbrace workflow node delete <flowId> step_1 --yes --json
+imbrace workflow node list <flowId>
+imbrace workflow node add <flowId> --type trigger --piece <name> --trigger-name <id> --input '{...}'
+imbrace workflow node add <flowId> --type action --piece <name> --action-name <id> --after <parent> --input '{...}'
+imbrace workflow node update <flowId> <nodeName> --input '{...}'
+imbrace workflow node delete <flowId> <nodeName> --yes
+imbrace workflow node add-raw <flowId> --op-file <path>   # advanced types: ROUTER, LOOP_ON_ITEMS, CODE
 ```
 
-**Sprint 3 — Connections, lifecycle, run** ⏳ (not yet implemented)
+**Connections (OAuth/API keys for external services)**
 ```bash
-# Planned commands — coming soon
-imbrace workflow conn list / create / delete
-imbrace workflow publish / enable / disable <flowId>
+imbrace workflow conn list
+imbrace workflow conn get <connId>
+imbrace workflow conn create --piece slack --type SECRET_TEXT --value "xoxb-..." [--display-name <X>]
+imbrace workflow conn delete <connId> --yes
+```
+
+**Lifecycle**
+```bash
+imbrace workflow publish <flowId>     # lock current draft as production
+imbrace workflow enable <flowId>      # auto-trigger on (requires publish first)
+imbrace workflow disable <flowId>     # stop auto-trigger
 imbrace workflow run <flowId> --payload '{...}' [--sync]
+```
+
+**Folders (organize flows)**
+```bash
+imbrace workflow folder list / get <id> / create --name / update <id> --name / delete <id> --yes
+```
+
+**MCP servers (Model Context Protocol — let AI agents call Activepieces tools)**
+```bash
+imbrace workflow mcp list / get <id> / create --name / delete <id> --yes
+imbrace workflow mcp rotate-token <mcpId> --yes        # token shown once at create + rotate
 ```
 
 **Variable syntax inside node `input`**
@@ -249,6 +281,8 @@ imbrace workflow run <flowId> --payload '{...}' [--sync]
 - `{{trigger.X}}` — top-level trigger field (for piece triggers)
 - `{{step_1.output.Y}}` — output field `Y` from step_1
 - `{{connections.<id>.access_token}}` — connection field
+
+**Known issue:** `workflow run --sync` may time out at ~30s even when the flow finishes faster. Workaround: use `workflow runs` + `run-detail <runId>` to fetch the result.
 
 ---
 
@@ -332,7 +366,11 @@ imbrace-cli/
             │   ├── get.ts
             │   ├── create.ts
             │   ├── update.ts
-            │   └── delete.ts
+            │   ├── delete.ts
+            │   ├── list-providers.ts        ← LLM providers discovery
+            │   ├── list-models.ts           ← Models per provider
+            │   ├── list-folders.ts          ← Knowledge Hub folders
+            │   └── list-files.ts            ← Files in a KH folder
             └── workflow/
                 ├── list.ts
                 ├── get.ts
@@ -340,14 +378,36 @@ imbrace-cli/
                 ├── delete.ts
                 ├── runs.ts
                 ├── run-detail.ts
+                ├── publish.ts               ← Lifecycle
+                ├── enable.ts
+                ├── disable.ts
+                ├── run.ts                    ← Trigger flow [--sync]
                 ├── piece/
                 │   ├── list.ts
                 │   └── detail.ts
-                └── node/
-                    ├── add.ts
-                    ├── update.ts
+                ├── node/
+                │   ├── add.ts
+                │   ├── update.ts
+                │   ├── delete.ts
+                │   ├── list.ts
+                │   └── add-raw.ts           ← ROUTER / LOOP_ON_ITEMS / CODE
+                ├── conn/                     ← Connections (OAuth/API keys)
+                │   ├── list.ts
+                │   ├── get.ts
+                │   ├── create.ts
+                │   └── delete.ts
+                ├── folder/                   ← Organize flows
+                │   ├── list.ts
+                │   ├── get.ts
+                │   ├── create.ts
+                │   ├── update.ts
+                │   └── delete.ts
+                └── mcp/                      ← Model Context Protocol servers
+                    ├── list.ts
+                    ├── get.ts
+                    ├── create.ts
                     ├── delete.ts
-                    └── list.ts
+                    └── rotate-token.ts
 ```
 
 ---

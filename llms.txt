@@ -42,15 +42,22 @@ Things to remember when using Imbrace CLI:
 
 ## AI Agent Commands
 
+**CRUD:**
 - `imbrace ai-agent list --json` — List all AI agents and their IDs
 - `imbrace ai-agent get <id> --json` — Get details of an AI agent
-- `imbrace ai-agent list-providers --json` — List LLM providers (system + custom)
-- `imbrace ai-agent list-models --provider-id <id> --json` — List models for a specific provider
-- `imbrace ai-agent create --name "Sales Bot" --json` — Create (minimal)
+- `imbrace ai-agent create --name "Sales Bot" --json` — Create (minimal — defaults to system provider, "Default" model)
 - `imbrace ai-agent create --name "X" --instructions "..." --personality "..." --tone "..." --json` — Create with full Behavior Settings
-- `imbrace ai-agent update <id> --name "New Name" --json` — Update any subset of fields (others unchanged)
+- `imbrace ai-agent update <id> --name "New Name" --json` — Update any subset of fields (others preserved via PUT-merge)
 - `imbrace ai-agent update <id> --temperature 0.7 --tone "Casual" --json` — Update Behavior Settings
 - `imbrace ai-agent delete <id> --yes --json` — Delete an AI agent
+
+**Discovery (LLM providers/models):**
+- `imbrace ai-agent list-providers --json` — List LLM providers (system + custom). Returns the UUID `provider_id` to pass to `--provider-id`.
+- `imbrace ai-agent list-models --provider-id <id> --json` — List models for a provider. Use `system` for the default provider.
+
+**Discovery (Knowledge Hub):**
+- `imbrace ai-agent list-folders [--search <q>] --json` — List Knowledge Hub folders for `--folder-ids`.
+- `imbrace ai-agent list-files --folder-id <id> --json` — List files inside a folder for `--file-ids`.
 
 ### AI Agent flags
 
@@ -62,8 +69,8 @@ Things to remember when using Imbrace CLI:
 - `--instructions` / `-i` — System prompt sent on every chat
 
 **Model:**
-- `--model` — LLM model name (default: `gpt-4o`). Discover via `list-models`.
-- `--provider-id` — LLM provider ID (default: `system`). Discover via `list-providers`.
+- `--model` — LLM model name (default: `Default` for system provider). Discover via `list-models`. **System provider only has one model named `Default`** — passing other names (like `gpt-4o`) makes the UI dropdown render empty even though the agent saves.
+- `--provider-id` — LLM provider ID (default: `system`). Discover via `list-providers`. **Pass the UUID `provider_id`, NOT the MongoDB `_id`** — the UI matches dropdowns against the UUID.
 - `--mode` — `standard` | `advanced` (default: standard)
 - `--temperature` — 0.0–2.0 (default: 0.1). Lower = deterministic, higher = creative.
 
@@ -77,10 +84,17 @@ Things to remember when using Imbrace CLI:
 - `--guardrail-id` — Attach a guardrail by ID
 - `--preload-information` — Static info auto-injected into context every chat
 
+**Knowledge Support (UI tab) — comma-separated IDs:**
+- `--folder-ids "id1,id2"` — Knowledge Hub folder IDs (RAG sources). Discover via `list-folders`.
+- `--default-folder-id <id>` — Default folder for new files
+- `--knowledge-hubs "id1,id2"` — Knowledge Hub IDs
+- `--board-ids "brd_xxx,brd_yyy"` — Document Model (data board) IDs. Discover via `imbrace data-board list`.
+- `--file-ids "id1,id2"` — Pre-uploaded file IDs. Discover via `list-files --folder-id <id>`.
+
 **Runtime toggles (boolean, support `--no-X`):**
 - `--show-thinking` / `--no-show-thinking` — Show model's thinking process (default: false)
 - `--streaming` / `--no-streaming` — Stream response token-by-token (default: true)
-- `--use-memory` / `--no-use-memory` — Remember conversation context across turns (default: true)
+- `--use-memory` / `--no-use-memory` — Remember conversation context across turns (default: true). **Known issue:** `--no-use-memory` at create may not stick (backend default override) — workaround: update after create.
 
 **Other:**
 - `--yes` / `-y` — Skip confirmation on delete
@@ -88,20 +102,33 @@ Things to remember when using Imbrace CLI:
 - `--id-only` — Print only the new agent ID (pipe-friendly, no jq). On `create` only.
 - `-h` / `--help` — Show usage
 
-### Full create example (all Behavior Settings)
+### Full create example (Behavior Settings + custom provider + Knowledge)
 
 ```bash
+# 1. Discover provider + model
+imbrace ai-agent list-providers --json
+imbrace ai-agent list-models --provider-id e2629292-7e9f-4d55-ba18-6827747eab33 --json
+
+# 2. Discover Knowledge Hub folder + board (Document Model)
+imbrace ai-agent list-folders --search support --json
+imbrace data-board list --json
+
+# 3. Create with full settings
 imbrace ai-agent create \
   --name "Customer Support Specialist" \
-  --description "Senior AI customer support agent for an e-commerce company" \
-  --instructions "You are a senior customer support specialist. Help customers with product questions, order tracking, and complaints. Escalate to a human for refunds over \$500, suspected fraud, or legal threats." \
-  --personality "Friendly and professional senior customer support agent" \
-  --core-task "Answer product inquiries, help track orders, resolve complaints, recommend products" \
-  --tone "Polite, professional, warm. Empathetic when frustrated. Concise and direct." \
+  --description "Senior AI customer support agent" \
+  --instructions "You are a senior customer support specialist..." \
+  --personality "Friendly and professional" \
+  --core-task "Answer product inquiries, help track orders" \
+  --tone "Polite, professional, warm" \
   --response-length "medium" \
-  --banned-words "stupid, idiot, shut up, guarantee, promise" \
+  --banned-words "stupid, idiot" \
   --category "Support" \
-  --model gpt-4o \
+  --provider-id "e2629292-7e9f-4d55-ba18-6827747eab33" \
+  --model "gpt-4o-mini" \
+  --temperature 0.3 \
+  --folder-ids "69bb82faa2cc764639bc6bdb" \
+  --board-ids "brd_e5450d76-84d4-4c34-8b13-3d0f1873b53b" \
   --json
 ```
 
@@ -475,16 +502,27 @@ imbrace data-board export-csv --board-id <boardId> --out ./leads.csv
 
 ### AI Agent
 ```bash
-# List all agents
+# Discover what's available
 imbrace ai-agent list --json
+imbrace ai-agent list-providers --json
+imbrace ai-agent list-models --provider-id system --json
+imbrace ai-agent list-folders --json
 
-# Create an agent
+# Create an agent (minimal)
 imbrace ai-agent create --name "Sales Bot" --instructions "You are a sales assistant" --json
 
-# Update agent instructions
-imbrace ai-agent update <agentId> --instructions "Updated instructions" --json
+# Create with custom provider + Knowledge Hub folder
+imbrace ai-agent create --name "RAG Bot" \
+  --instructions "Answer using the provided knowledge" \
+  --provider-id e2629292-7e9f-4d55-ba18-6827747eab33 \
+  --model gpt-4o-mini \
+  --folder-ids 69bb82faa2cc764639bc6bdb \
+  --json
 
-# Delete agent
+# Update — partial (other fields preserved)
+imbrace ai-agent update <agentId> --instructions "Updated" --temperature 0.7 --json
+
+# Delete
 imbrace ai-agent delete <agentId> --yes --json
 ```
 
