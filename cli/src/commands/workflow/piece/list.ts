@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
 
 export default class WorkflowPieceList extends BaseCommand {
   static description = "List available integrations (pieces) for use in workflow nodes";
@@ -19,19 +19,37 @@ export default class WorkflowPieceList extends BaseCommand {
   async run() {
     const { flags } = await this.parse(WorkflowPieceList);
 
-    const qs = flags.search ? `?search=${encodeURIComponent(flags.search)}` : "";
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>(`/workflow/piece/list${qs}`);
+      const client = getClient();
+      const res = await client.workflows.listPieces();
+      let arr: any[] = (Array.isArray(res) ? res : (res as any)?.data) || [];
+      if (flags.search) {
+        const q = flags.search.toLowerCase();
+        arr = arr.filter((p: any) =>
+          p.name?.toLowerCase().includes(q) ||
+          p.displayName?.toLowerCase().includes(q) ||
+          p.description?.toLowerCase().includes(q),
+        );
+      }
+      const data = arr.map((p: any) => ({
+        name: p.name,
+        displayName: p.displayName,
+        description: p.description,
+        categories: p.categories,
+        actions: p.actions,
+        triggers: p.triggers,
+        version: p.version,
+      }));
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} piece(s)${flags.search ? ` matching "${flags.search}"` : ""}:\n`);
+      this.log(`\n  Found ${data.length} piece(s)${flags.search ? ` matching "${flags.search}"` : ""}:\n`);
       this.log("  NAME                                          DISPLAY                          A  T");
       this.log("  ──────────────────────────────────────────────────────────────────────────────────");
-      for (const p of res.data || []) {
+      for (const p of data) {
         const name = (p.name || "").padEnd(45);
         const display = (p.displayName || "").padEnd(32);
         const a = String(p.actions ?? 0).padStart(2);

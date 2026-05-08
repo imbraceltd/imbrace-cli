@@ -1,7 +1,7 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class DataBoardListItems extends BaseCommand {
   static description = "List or search items (records) in a board";
@@ -28,20 +28,17 @@ export default class DataBoardListItems extends BaseCommand {
     const limit = flags.limit ?? (flags.json ? 20 : Number(await input({ message: "Limit (press Enter for 20):", default: "20" })));
     const skip = flags.skip ?? (flags.json || q ? 0 : Number(await input({ message: "Skip (press Enter for 0):", default: "0" })));
 
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    params.set("limit", String(limit));
-    if (!q) params.set("skip", String(skip));
-
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>(
-        `/data-board/${boardId}/items?${params}`
-      );
+      const client = getClient();
+      const res: any = q
+        ? await client.boards.search(boardId, { q, limit })
+        : await client.boards.listItems(boardId, { limit, skip });
+      const data: any[] = res?.data ?? res ?? [];
 
-      if (flags.json) { this.log(JSON.stringify(res, null, 2)); return; }
+      if (flags.json) { this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2)); return; }
 
-      this.log(`\n  Found ${res.count} item(s):\n`);
-      for (const item of res.data || []) {
+      this.log(`\n  Found ${data.length} item(s):\n`);
+      for (const item of data) {
         this.log(`  ${item._id}`);
       }
       this.log("");

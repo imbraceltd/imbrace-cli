@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class DataBoardUpdateItem extends BaseCommand {
   static description = "Update an item in a board. Fetches fields and prompts per field.";
@@ -27,13 +27,15 @@ export default class DataBoardUpdateItem extends BaseCommand {
     const boardId = args.boardId ?? await input({ message: "Board ID:" });
     const itemId = args.itemId ?? await input({ message: "Item ID:" });
 
+    const client = getClient();
+
     let data: any[];
     if (flags.data) {
       try { data = JSON.parse(flags.data); }
       catch { this.error("--data must be valid JSON array"); }
     } else {
-      const boardRes = await apiRequest<{ ok: boolean; data: any[] }>(`/data-board/${boardId}/fields`);
-      const boardFields: any[] = boardRes.data || [];
+      const board: any = await client.boards.get(boardId);
+      const boardFields: any[] = board?.fields || board?.data?.fields || [];
       if (!boardFields.length) this.error("Board has no fields.");
 
       this.log("\n  Update fields (leave empty to skip):\n");
@@ -45,13 +47,11 @@ export default class DataBoardUpdateItem extends BaseCommand {
     }
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        `/data-board/${boardId}/items/${itemId}`,
-        { method: "PUT", body: { data } }
-      );
+      const item: any = await client.boards.updateItem(boardId, itemId, { data } as any);
+      const message = "Item updated";
 
-      if (flags.json) { this.log(JSON.stringify(res, null, 2)); return; }
-      this.log(`\n✅ ${res.message}\n`);
+      if (flags.json) { this.log(JSON.stringify({ ok: true, message, data: item }, null, 2)); return; }
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

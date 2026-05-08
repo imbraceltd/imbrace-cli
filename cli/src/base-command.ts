@@ -1,7 +1,8 @@
 import { Command, Flags } from "@oclif/core";
 import { select, input, password } from "@inquirer/prompts";
-import { getCredential, saveCredential, config } from "./config.js";
-import { apiRequest } from "./http.js";
+import { ImbraceClient } from "@imbrace/sdk";
+import { getCredential, saveCredential } from "./config.js";
+import { resetClient } from "./lib/client.js";
 
 export abstract class BaseCommand extends Command {
   // Enable -h as alias for --help on every command (helps coding agents discover usage)
@@ -27,33 +28,23 @@ export abstract class BaseCommand extends Command {
       ],
     });
 
-    let body: any;
-
-    if (method === "api-key") {
-      const apiKey = await input({ message: "API Key (sk-...):" });
-      body = { apiKey };
-    } else {
-      const email = await input({ message: "Email:" });
-      const pass = await password({ message: "Password:" });
-      body = { email, password: pass };
-    }
-
     try {
-      const res = await apiRequest<{
-        ok: boolean;
-        method: string;
-        credential: string;
-        email?: string;
-        message: string;
-      }>("/auth/login", { method: "POST", body });
-
-      saveCredential({
-        credential: res.credential,
-        method: res.method as "api-key" | "password",
-        email: res.email,
-      });
-
-      this.log(`\n✅ ${res.message}\n`);
+      if (method === "api-key") {
+        const apiKey = await input({ message: "API Key (api_... or sk-...):" });
+        const client = new ImbraceClient({ apiKey });
+        await client.boards.list();
+        saveCredential({ credential: apiKey, method: "api-key" });
+      } else {
+        const email = await input({ message: "Email:" });
+        const pass = await password({ message: "Password:" });
+        const client = new ImbraceClient();
+        await client.login(email, pass);
+        const token = (client as any).tokenManager?.getToken();
+        if (!token) throw new Error("No token issued");
+        saveCredential({ credential: token, method: "password", email });
+      }
+      resetClient();
+      this.log(`\n✅ Logged in\n`);
     } catch (error: any) {
       this.error(`Login failed: ${error.message}`);
     }

@@ -1,6 +1,7 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
+import { resolveProjectId } from "../../../lib/workflow.js";
 
 export default class WorkflowMcpList extends BaseCommand {
   static description = "List MCP (Model Context Protocol) servers for the project";
@@ -18,17 +19,20 @@ export default class WorkflowMcpList extends BaseCommand {
     const { flags } = await this.parse(WorkflowMcpList);
 
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>("/workflow/mcp/list");
+      const client = getClient();
+      const projectId = await resolveProjectId(client);
+      const res = await client.workflows.listMcpServers(projectId) as any;
+      const data: any[] = res?.data ?? [];
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} MCP server(s):\n`);
+      this.log(`\n  Found ${data.length} MCP server(s):\n`);
       this.log("  ID                       NAME                       TOOLS");
       this.log("  ──────────────────────────────────────────────────────────");
-      for (const m of res.data || []) {
+      for (const m of data) {
         const id = (m.id || "").padEnd(24);
         const name = (m.name || "").padEnd(26);
         const tools = (m.tools || []).length;

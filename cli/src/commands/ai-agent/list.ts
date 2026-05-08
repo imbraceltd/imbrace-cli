@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class AiAgentList extends BaseCommand {
   static description = "List all AI agents";
@@ -18,17 +18,19 @@ export default class AiAgentList extends BaseCommand {
     const { flags } = await this.parse(AiAgentList);
 
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>("/ai-agent/list");
+      const client = getClient();
+      const res = await client.agent.list() as any;
+      const data: any[] = (res?.data ?? res ?? []) as any[];
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} agent(s):\n`);
+      this.log(`\n  Found ${data.length} agent(s):\n`);
       this.log("  ID                                    TITLE                 TYPE");
       this.log("  ──────────────────────────────────────────────────────────────────");
-      for (const agent of res.data || []) {
+      for (const agent of data) {
         const id = (agent._id || agent.id || "").padEnd(38);
         const title = (agent.title || agent.name || "").padEnd(22);
         const type = agent.agent_type || "";

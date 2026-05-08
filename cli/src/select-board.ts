@@ -1,9 +1,10 @@
 import { select } from "@inquirer/prompts";
-import { apiRequest } from "./http.js";
+import { getClient } from "./lib/client.js";
 
 export async function selectBoard(): Promise<string> {
-  const res = await apiRequest<{ ok: boolean; data: any[] }>("/data-board/list");
-  const boards = res.data || [];
+  const client = getClient();
+  const res = await client.boards.list() as any;
+  const boards: any[] = res?.data ?? [];
 
   if (!boards.length) throw new Error("No boards found. Create a board first.");
 

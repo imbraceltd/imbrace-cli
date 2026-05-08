@@ -1,6 +1,7 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
+import { normalizePieceName, resolveProjectId } from "../../../lib/workflow.js";
 
 export default class WorkflowConnCreate extends BaseCommand {
   static description = "Create a connection (save credential for an external service)";
@@ -43,32 +44,46 @@ export default class WorkflowConnCreate extends BaseCommand {
       }
     }
 
-    const body: Record<string, any> = {
-      piece: flags.piece,
-      type: flags.type,
-      value,
-    };
-    if (flags["display-name"]) body.displayName = flags["display-name"];
-    if (flags["external-id"]) body.externalId = flags["external-id"];
-
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        "/workflow/conn/create",
-        { method: "POST", body },
-      );
+      const client = getClient();
+      const pieceName = normalizePieceName(flags.piece);
+      const projectId = await resolveProjectId(client);
+      const externalId = flags["external-id"] || `cli_${Date.now()}`;
+
+      // Activepieces requires `value.type` to match the connection type.
+      let apValue: any;
+      if (flags.type === "SECRET_TEXT" && typeof value === "string") {
+        apValue = { type: "SECRET_TEXT", secret_text: value };
+      } else if (flags.type === "BASIC_AUTH" && typeof value === "object") {
+        apValue = { type: "BASIC_AUTH", username: (value as any).username, password: (value as any).password };
+      } else {
+        apValue = typeof value === "object" && value.type
+          ? value
+          : { type: flags.type, ...(typeof value === "object" ? value : {}) };
+      }
+
+      const data: any = await client.workflows.upsertConnection({
+        pieceName,
+        projectId,
+        externalId,
+        displayName: flags["display-name"] || `${pieceName.split("/").pop()} (${externalId})`,
+        type: flags.type,
+        value: apValue,
+      } as any);
+      const message = "Connection created";
 
       if (flags["id-only"]) {
-        this.log(res.data?.id ?? "");
+        this.log(data?.id ?? "");
         return;
       }
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}`);
-      if (res.data?.id) this.log(`   ID: ${res.data.id}`);
+      this.log(`\n✅ ${message}`);
+      if (data?.id) this.log(`   ID: ${data.id}`);
       this.log("");
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);

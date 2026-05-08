@@ -24,7 +24,6 @@ export default class Whoami extends Command {
           {
             email: info.email || null,
             method: info.method,
-            apiUrl: info.apiUrl,
             authenticated: true,
           },
           null,
@@ -36,7 +35,6 @@ export default class Whoami extends Command {
 
     this.log(`\n  Email:    ${info.email || "(api-key)"}`);
     this.log(`  Method:   ${info.method}`);
-    this.log(`  API URL:  ${info.apiUrl}`);
     this.log(`  Status:   authenticated\n`);
   }
 }

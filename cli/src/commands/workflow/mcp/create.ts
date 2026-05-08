@@ -1,7 +1,8 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
+import { resolveProjectId } from "../../../lib/workflow.js";
 
 export default class WorkflowMcpCreate extends BaseCommand {
   static description = "Create a new MCP (Model Context Protocol) server. The token is shown once at creation — save it.";
@@ -24,27 +25,24 @@ export default class WorkflowMcpCreate extends BaseCommand {
     const nonInteractive = flags.json || flags["id-only"];
     const name = flags.name ?? (nonInteractive ? this.error("--name is required with --json or --id-only") : await input({ message: "MCP name:" }));
 
-    const body: Record<string, any> = { name };
-    if (flags["project-id"]) body.projectId = flags["project-id"];
-
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        "/workflow/mcp/create",
-        { method: "POST", body },
-      );
+      const client = getClient();
+      const projectId = flags["project-id"] || (await resolveProjectId(client));
+      const data: any = await client.workflows.createMcpServer({ name, projectId } as any);
+      const message = `MCP server "${name}" created`;
 
       if (flags["id-only"]) {
-        this.log(res.data?.id ?? "");
+        this.log(data?.id ?? "");
         return;
       }
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      const m = res.data || {};
-      this.log(`\n✅ ${res.message}`);
+      const m: any = data || {};
+      this.log(`\n✅ ${message}`);
       this.log(`   ID:    ${m.id}`);
       this.log(`   Token: ${m.token}`);
       this.log(`\n  ⚠️  Save the token now — it WON'T be shown again. Use 'mcp rotate-token <id>' to issue a new one.\n`);

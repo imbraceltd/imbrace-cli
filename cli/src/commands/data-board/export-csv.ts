@@ -2,7 +2,7 @@ import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
 import { writeFileSync } from "fs";
-import { apiRequestText } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class DataBoardExportCsv extends BaseCommand {
   static description = "Export a board to CSV";
@@ -24,7 +24,8 @@ export default class DataBoardExportCsv extends BaseCommand {
     const out = flags.out ?? await input({ message: "Save to file path (leave empty to print):", default: "" });
 
     try {
-      const csv = await apiRequestText(`/data-board/${boardId}/export-csv`);
+      const client = getClient();
+      const csv = await client.boards.exportCsv(boardId);
 
       if (out) {
         writeFileSync(out, csv as any);

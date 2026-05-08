@@ -1,6 +1,13 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
-import { apiRequest } from "../../../http.js";
+import { getClient } from "../../../lib/client.js";
+import {
+  buildPropertySettings,
+  fetchPieceMeta,
+  flattenNodes,
+  nextStepName,
+  normalizePieceName,
+} from "../../../lib/workflow.js";
 
 export default class WorkflowNodeAdd extends BaseCommand {
   static description = "Add a trigger or action node to a workflow";
@@ -46,30 +53,84 @@ export default class WorkflowNodeAdd extends BaseCommand {
       }
     }
 
-    const body: Record<string, any> = {
-      type: flags.type,
-      piece: flags.piece,
-      input: parsedInput,
-    };
-    if (flags["trigger-name"]) body.triggerName = flags["trigger-name"];
-    if (flags["action-name"]) body.actionName = flags["action-name"];
-    if (flags.after) body.after = flags.after;
-    if (flags.name) body.name = flags.name;
-    if (flags["display-name"]) body.displayName = flags["display-name"];
-
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        `/workflow/${args.flowId}/nodes`,
-        { method: "POST", body },
-      );
+      const client = getClient();
+      const pieceName = normalizePieceName(flags.piece);
+      const pieceVersion = (await fetchPieceMeta(pieceName)).version;
+      const propertySettings = buildPropertySettings(parsedInput);
 
-      if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+      if (flags.type === "trigger") {
+        const op = {
+          type: "UPDATE_TRIGGER",
+          request: {
+            name: "trigger",
+            type: "PIECE_TRIGGER",
+            displayName: flags["display-name"] || flags["trigger-name"],
+            settings: {
+              pieceName,
+              pieceVersion,
+              triggerName: flags["trigger-name"],
+              input: parsedInput,
+              propertySettings,
+              sampleData: {},
+            },
+            valid: true,
+          },
+        };
+        const data = await client.workflows.applyFlowOperation(args.flowId, op as any);
+        const message = "Trigger set";
+
+        if (flags.json) {
+          this.log(JSON.stringify({ ok: true, message, data }, null, 2));
+          return;
+        }
+        this.log(`\n✅ ${message}\n`);
         return;
       }
 
-      this.log(`\n✅ ${res.message}`);
-      if (res.data?.stepName) this.log(`   Step: ${res.data.stepName} (after ${res.data.parentStep})`);
+      // type === "action"
+      const flow = await client.workflows.getFlow(args.flowId) as any;
+      const trigger = flow?.version?.trigger;
+      const parentStep = flags.after || (() => {
+        const nodes = flattenNodes(trigger);
+        return nodes.length > 0 ? nodes[nodes.length - 1].name : "trigger";
+      })();
+      const stepName = flags.name || nextStepName(trigger);
+
+      const op = {
+        type: "ADD_ACTION",
+        request: {
+          parentStep,
+          action: {
+            name: stepName,
+            type: "PIECE",
+            displayName: flags["display-name"] || flags["action-name"],
+            settings: {
+              pieceName,
+              pieceVersion,
+              actionName: flags["action-name"],
+              input: parsedInput,
+              propertySettings,
+              sampleData: {},
+              errorHandlingOptions: {
+                retryOnFailure: { value: false },
+                continueOnFailure: { value: false },
+              },
+            },
+            valid: true,
+          },
+        },
+      };
+      const data = await client.workflows.applyFlowOperation(args.flowId, op as any);
+      const message = `Action "${stepName}" added after ${parentStep}`;
+
+      if (flags.json) {
+        this.log(JSON.stringify({ ok: true, message, data: { stepName, parentStep, flow: data } }, null, 2));
+        return;
+      }
+
+      this.log(`\n✅ ${message}`);
+      this.log(`   Step: ${stepName} (after ${parentStep})`);
       this.log("");
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);

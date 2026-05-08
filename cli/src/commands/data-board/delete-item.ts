@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input, confirm } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class DataBoardDeleteItem extends BaseCommand {
   static description = "Delete an item from a board";
@@ -33,13 +33,12 @@ export default class DataBoardDeleteItem extends BaseCommand {
     }
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string }>(
-        `/data-board/${boardId}/items/${itemId}`,
-        { method: "DELETE" }
-      );
+      const client = getClient();
+      await client.boards.deleteItem(boardId, itemId);
+      const message = "Item deleted";
 
-      if (flags.json) { this.log(JSON.stringify(res, null, 2)); return; }
-      this.log(`\n✅ ${res.message}\n`);
+      if (flags.json) { this.log(JSON.stringify({ ok: true, message }, null, 2)); return; }
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

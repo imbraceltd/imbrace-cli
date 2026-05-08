@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class WorkflowGet extends BaseCommand {
   static description = "Get details of a workflow (including node tree)";
@@ -24,15 +24,16 @@ export default class WorkflowGet extends BaseCommand {
     const id = args.id ?? (flags.json ? this.error("ID is required") : await input({ message: "Workflow ID:" }));
 
     try {
-      const res = await apiRequest<{ ok: boolean; data: any }>(`/workflow/${id}`);
+      const client = getClient();
+      const data = await client.workflows.getFlow(id);
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, data }, null, 2));
         return;
       }
 
-      const f = res.data || {};
-      const v = f.version || {};
+      const f: any = data || {};
+      const v: any = f.version || {};
       this.log(`\n  ID:           ${f.id || ""}`);
       this.log(`  Name:         ${v.displayName || ""}`);
       this.log(`  Status:       ${f.status || ""}`);

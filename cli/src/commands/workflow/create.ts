@@ -1,7 +1,8 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
+import { resolveProjectId } from "../../lib/workflow.js";
 
 export default class WorkflowCreate extends BaseCommand {
   static description = "Create a new workflow (empty — add nodes via UI builder or `workflow node add`)";
@@ -26,29 +27,27 @@ export default class WorkflowCreate extends BaseCommand {
     const nonInteractive = flags.json || flags["id-only"];
     const name = flags.name ?? (nonInteractive ? this.error("--name is required with --json or --id-only") : await input({ message: "Workflow name:" }));
 
-    const body: Record<string, any> = { name };
-    if (flags["project-id"]) body.projectId = flags["project-id"];
-    if (flags["folder-id"]) body.folderId = flags["folder-id"];
-
     try {
-      const res = await apiRequest<{ ok: boolean; message: string; data: any }>(
-        "/workflow/create",
-        { method: "POST", body },
-      );
+      const client = getClient();
+      const projectId = flags["project-id"] || (await resolveProjectId(client));
+      const createBody: Record<string, any> = { displayName: name, projectId };
+      if (flags["folder-id"]) createBody.folderId = flags["folder-id"];
+      const data: any = await client.workflows.createFlow(createBody as any);
+      const message = `Workflow "${name}" created`;
 
       if (flags["id-only"]) {
-        this.log(res.data?.id ?? "");
+        this.log(data?.id ?? "");
         return;
       }
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}`);
-      if (res.data?.id) this.log(`   ID: ${res.data.id}`);
-      if (res.data?.projectId) this.log(`   Project: ${res.data.projectId}`);
+      this.log(`\n✅ ${message}`);
+      if (data?.id) this.log(`   ID: ${data.id}`);
+      if (data?.projectId) this.log(`   Project: ${data.projectId}`);
       this.log("");
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);

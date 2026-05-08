@@ -1,6 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class DataBoardList extends BaseCommand {
   static description = "List all boards — use this to get Board IDs";
@@ -18,17 +18,19 @@ export default class DataBoardList extends BaseCommand {
     const { flags } = await this.parse(DataBoardList);
 
     try {
-      const res = await apiRequest<{ ok: boolean; count: number; data: any[] }>("/data-board/list");
+      const client = getClient();
+      const res = await client.boards.list() as any;
+      const data: any[] = res?.data ?? [];
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
-      this.log(`\n  Found ${res.count} board(s):\n`);
+      this.log(`\n  Found ${data.length} board(s):\n`);
       this.log("  ID                                    NAME");
       this.log("  ──────────────────────────────────────────────────────");
-      for (const board of res.data || []) {
+      for (const board of data) {
         this.log(`  ${(board._id || "").padEnd(38)}  ${board.name || ""}`);
       }
       this.log("");

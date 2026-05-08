@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class WorkflowRunDetail extends BaseCommand {
   static description = "Get details of a single workflow run (status, failed step, timing)";
@@ -24,14 +24,15 @@ export default class WorkflowRunDetail extends BaseCommand {
     const runId = args.runId ?? (flags.json ? this.error("Run ID is required") : await input({ message: "Run ID:" }));
 
     try {
-      const res = await apiRequest<{ ok: boolean; data: any }>(`/workflow/runs/${runId}`);
+      const client = getClient();
+      const data = await client.workflows.getRun(runId);
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, data }, null, 2));
         return;
       }
 
-      const r = res.data || {};
+      const r: any = data || {};
       const dur = r.startTime && r.finishTime
         ? `${((new Date(r.finishTime).getTime() - new Date(r.startTime).getTime()) / 1000).toFixed(2)}s`
         : "—";

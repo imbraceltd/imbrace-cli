@@ -1,7 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class AiAgentGet extends BaseCommand {
   static description = "Get details of an AI agent";
@@ -25,15 +25,15 @@ export default class AiAgentGet extends BaseCommand {
     const id = args.id ?? (flags.json ? this.error("ID is required") : await input({ message: "Agent ID:" }));
 
     try {
-      const res = await apiRequest<{ ok: boolean; data: any }>(`/ai-agent/${id}`);
+      const client = getClient();
+      const data = await client.agent.get(id) as any;
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, data }, null, 2));
         return;
       }
 
-      // SDK returns { data: {...} } so res.data is { data: <template> }
-      const a = res.data?.data || res.data || {};
+      const a = data?.data || data || {};
       this.log(`\n  ID:           ${a._id || a.id || ""}`);
       this.log(`  Title:        ${a.title || a.name || ""}`);
       this.log(`  Type:         ${a.agent_type || ""}`);

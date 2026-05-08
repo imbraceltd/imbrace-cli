@@ -9,7 +9,7 @@ const GW = "https://app-gatewayv2.imbrace.co";
 
 // Resolve a projectId by reusing the project of any existing flow.
 async function resolveProjectId(client: ImbraceClient): Promise<string> {
-  const flows = await client.activepieces.listFlows();
+  const flows = await client.workflows.listFlows();
   const first = (flows as any)?.data?.[0];
   if (!first?.projectId) {
     throw new Error(
@@ -91,7 +91,7 @@ workflowRoutes.get("/runs", async (c) => {
   const client = c.get("imbraceClient");
   const limit = Number(c.req.query("limit") || 10);
   try {
-    const res = await client.activepieces.listRuns({ limit } as any);
+    const res = await client.workflows.listRuns({ limit } as any);
     const data = (res as any)?.data ?? [];
     return c.json({ ok: true, count: data.length, data });
   } catch (error: any) {
@@ -104,7 +104,7 @@ workflowRoutes.get("/runs/:runId", async (c) => {
   const client = c.get("imbraceClient");
   const runId = c.req.param("runId");
   try {
-    const data = await client.activepieces.getRun(runId);
+    const data = await client.workflows.getRun(runId);
     return c.json({ ok: true, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -121,7 +121,7 @@ workflowRoutes.get("/list", async (c) => {
   try {
     const params: Record<string, string> = {};
     if (folderId) params.folderId = folderId;
-    const res = await client.activepieces.listFlows(params as any);
+    const res = await client.workflows.listFlows(params as any);
     const data = (res as any)?.data ?? [];
     return c.json({ ok: true, count: data.length, data });
   } catch (error: any) {
@@ -134,7 +134,7 @@ workflowRoutes.get("/:id", async (c) => {
   const client = c.get("imbraceClient");
   const id = c.req.param("id");
   try {
-    const data = await client.activepieces.getFlow(id);
+    const data = await client.workflows.getFlow(id);
     return c.json({ ok: true, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -155,7 +155,7 @@ workflowRoutes.post("/create", async (c) => {
       projectId,
     };
     if (body.folderId) createBody.folderId = body.folderId;
-    const data = await client.activepieces.createFlow(createBody);
+    const data = await client.workflows.createFlow(createBody);
     return c.json({ ok: true, message: `Workflow "${body.name}" created`, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -177,7 +177,7 @@ workflowRoutes.post("/:id/move", async (c) => {
       type: "CHANGE_FOLDER",
       request: { folderId: body.folderId },
     };
-    const data = await client.activepieces.applyFlowOperation(id, op as any);
+    const data = await client.workflows.applyFlowOperation(id, op as any);
     const target = body.folderId ?? "(unfiled)";
     return c.json({ ok: true, message: `Workflow moved to ${target}`, data });
   } catch (error: any) {
@@ -190,7 +190,7 @@ workflowRoutes.delete("/:id", async (c) => {
   const client = c.get("imbraceClient");
   const id = c.req.param("id");
   try {
-    await client.activepieces.deleteFlow(id);
+    await client.workflows.deleteFlow(id);
     return c.json({ ok: true, message: "Workflow deleted" });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -206,7 +206,7 @@ workflowRoutes.get("/piece/list", async (c) => {
   const client = c.get("imbraceClient");
   const search = c.req.query("search");
   try {
-    const res = await client.activepieces.listPieces();
+    const res = await client.workflows.listPieces();
     let arr = (Array.isArray(res) ? res : (res as any)?.data) || [];
     if (search) {
       const q = search.toLowerCase();
@@ -266,7 +266,7 @@ workflowRoutes.get("/:flowId/nodes", async (c) => {
   const client = c.get("imbraceClient");
   const flowId = c.req.param("flowId");
   try {
-    const flow = await client.activepieces.getFlow(flowId) as any;
+    const flow = await client.workflows.getFlow(flowId) as any;
     const nodes = flattenNodes(flow?.version?.trigger);
     return c.json({ ok: true, count: nodes.length, data: nodes });
   } catch (error: any) {
@@ -326,12 +326,12 @@ workflowRoutes.post("/:flowId/nodes", async (c) => {
           valid: true,
         },
       };
-      const data = await client.activepieces.applyFlowOperation(flowId, op as any);
+      const data = await client.workflows.applyFlowOperation(flowId, op as any);
       return c.json({ ok: true, message: "Trigger set", data });
     }
 
     // type === "action"
-    const flow = await client.activepieces.getFlow(flowId) as any;
+    const flow = await client.workflows.getFlow(flowId) as any;
     const trigger = flow?.version?.trigger;
     const parentStep = body.after || (() => {
       const nodes = flattenNodes(trigger);
@@ -363,7 +363,7 @@ workflowRoutes.post("/:flowId/nodes", async (c) => {
         },
       },
     };
-    const data = await client.activepieces.applyFlowOperation(flowId, op as any);
+    const data = await client.workflows.applyFlowOperation(flowId, op as any);
     return c.json({ ok: true, message: `Action "${stepName}" added after ${parentStep}`, data: { stepName, parentStep, flow: data } });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -380,7 +380,7 @@ workflowRoutes.put("/:flowId/nodes/:nodeName", async (c) => {
   const body = await c.req.json();
 
   try {
-    const flow = await client.activepieces.getFlow(flowId) as any;
+    const flow = await client.workflows.getFlow(flowId) as any;
     const nodes = flattenNodes(flow?.version?.trigger);
     const cur = nodes.find((n: any) => n.name === nodeName);
     if (!cur) return c.json({ ok: false, message: `Node "${nodeName}" not found` }, 404);
@@ -416,7 +416,7 @@ workflowRoutes.put("/:flowId/nodes/:nodeName", async (c) => {
         valid: true,
       },
     };
-    const data = await client.activepieces.applyFlowOperation(flowId, op as any);
+    const data = await client.workflows.applyFlowOperation(flowId, op as any);
     return c.json({ ok: true, message: `Node "${nodeName}" updated`, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -438,7 +438,7 @@ workflowRoutes.post("/:flowId/nodes/raw", async (c) => {
   }
 
   try {
-    const data = await client.activepieces.applyFlowOperation(flowId, body as any);
+    const data = await client.workflows.applyFlowOperation(flowId, body as any);
     return c.json({ ok: true, message: `Operation "${body.type}" applied`, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -461,7 +461,7 @@ workflowRoutes.delete("/:flowId/nodes/:nodeName", async (c) => {
       type: "DELETE_ACTION",
       request: { names: [nodeName] },
     };
-    const data = await client.activepieces.applyFlowOperation(flowId, op as any);
+    const data = await client.workflows.applyFlowOperation(flowId, op as any);
     return c.json({ ok: true, message: `Node "${nodeName}" deleted`, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -477,7 +477,7 @@ workflowRoutes.get("/mcp/list", async (c) => {
   const client = c.get("imbraceClient");
   try {
     const projectId = await resolveProjectId(client);
-    const res = await client.activepieces.listMcpServers(projectId);
+    const res = await client.workflows.listMcpServers(projectId);
     const data = (res as any)?.data ?? [];
     return c.json({ ok: true, count: data.length, data });
   } catch (error: any) {
@@ -490,7 +490,7 @@ workflowRoutes.get("/mcp/:mcpId", async (c) => {
   const client = c.get("imbraceClient");
   const mcpId = c.req.param("mcpId");
   try {
-    const data = await client.activepieces.getMcpServer(mcpId);
+    const data = await client.workflows.getMcpServer(mcpId);
     return c.json({ ok: true, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -506,7 +506,7 @@ workflowRoutes.post("/mcp/create", async (c) => {
 
   try {
     const projectId = body.projectId || (await resolveProjectId(client));
-    const data = await client.activepieces.createMcpServer({
+    const data = await client.workflows.createMcpServer({
       name: body.name,
       projectId,
     } as any);
@@ -521,7 +521,7 @@ workflowRoutes.post("/mcp/:mcpId/rotate-token", async (c) => {
   const client = c.get("imbraceClient");
   const mcpId = c.req.param("mcpId");
   try {
-    const data = await client.activepieces.rotateMcpToken(mcpId);
+    const data = await client.workflows.rotateMcpToken(mcpId);
     return c.json({
       ok: true,
       message: "Token rotated. Save the new token now — it won't be shown again.",
@@ -537,7 +537,7 @@ workflowRoutes.delete("/mcp/:mcpId", async (c) => {
   const client = c.get("imbraceClient");
   const mcpId = c.req.param("mcpId");
   try {
-    await client.activepieces.deleteMcpServer(mcpId);
+    await client.workflows.deleteMcpServer(mcpId);
     return c.json({ ok: true, message: "MCP server deleted" });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -552,7 +552,7 @@ workflowRoutes.delete("/mcp/:mcpId", async (c) => {
 workflowRoutes.get("/folder/list", async (c) => {
   const client = c.get("imbraceClient");
   try {
-    const res = await client.activepieces.listFolders();
+    const res = await client.workflows.listFolders();
     const data = (res as any)?.data ?? [];
     return c.json({ ok: true, count: data.length, data });
   } catch (error: any) {
@@ -565,7 +565,7 @@ workflowRoutes.get("/folder/:folderId", async (c) => {
   const client = c.get("imbraceClient");
   const folderId = c.req.param("folderId");
   try {
-    const data = await client.activepieces.getFolder(folderId);
+    const data = await client.workflows.getFolder(folderId);
     return c.json({ ok: true, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -581,7 +581,7 @@ workflowRoutes.post("/folder/create", async (c) => {
 
   try {
     const projectId = body.projectId || (await resolveProjectId(client));
-    const data = await client.activepieces.createFolder({
+    const data = await client.workflows.createFolder({
       displayName: body.name,
       projectId,
     });
@@ -600,7 +600,7 @@ workflowRoutes.put("/folder/:folderId", async (c) => {
   if (!body.name) return c.json({ ok: false, message: "name is required" }, 400);
 
   try {
-    const data = await client.activepieces.updateFolder(folderId, {
+    const data = await client.workflows.updateFolder(folderId, {
       displayName: body.name,
     });
     return c.json({ ok: true, message: "Folder renamed", data });
@@ -614,7 +614,7 @@ workflowRoutes.delete("/folder/:folderId", async (c) => {
   const client = c.get("imbraceClient");
   const folderId = c.req.param("folderId");
   try {
-    await client.activepieces.deleteFolder(folderId);
+    await client.workflows.deleteFolder(folderId);
     return c.json({ ok: true, message: "Folder deleted" });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -629,7 +629,7 @@ workflowRoutes.delete("/folder/:folderId", async (c) => {
 workflowRoutes.get("/conn/list", async (c) => {
   const client = c.get("imbraceClient");
   try {
-    const res = await client.activepieces.listConnections();
+    const res = await client.workflows.listConnections();
     const data = (res as any)?.data ?? [];
     return c.json({ ok: true, count: data.length, data });
   } catch (error: any) {
@@ -668,7 +668,7 @@ workflowRoutes.post("/conn/create", async (c) => {
   }
 
   try {
-    const data = await client.activepieces.upsertConnection({
+    const data = await client.workflows.upsertConnection({
       pieceName,
       projectId,
       externalId,
@@ -687,7 +687,7 @@ workflowRoutes.get("/conn/:connId", async (c) => {
   const client = c.get("imbraceClient");
   const connId = c.req.param("connId");
   try {
-    const data = await client.activepieces.getConnection(connId);
+    const data = await client.workflows.getConnection(connId);
     return c.json({ ok: true, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -699,7 +699,7 @@ workflowRoutes.delete("/conn/:connId", async (c) => {
   const client = c.get("imbraceClient");
   const connId = c.req.param("connId");
   try {
-    await client.activepieces.deleteConnection(connId);
+    await client.workflows.deleteConnection(connId);
     return c.json({ ok: true, message: "Connection deleted" });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
@@ -715,7 +715,7 @@ workflowRoutes.post("/:flowId/publish", async (c) => {
   const client = c.get("imbraceClient");
   const flowId = c.req.param("flowId");
   try {
-    const data = await client.activepieces.applyFlowOperation(flowId, {
+    const data = await client.workflows.applyFlowOperation(flowId, {
       type: "LOCK_AND_PUBLISH",
       request: {},
     } as any);
@@ -730,7 +730,7 @@ workflowRoutes.post("/:flowId/enable", async (c) => {
   const client = c.get("imbraceClient");
   const flowId = c.req.param("flowId");
   try {
-    const data = await client.activepieces.applyFlowOperation(flowId, {
+    const data = await client.workflows.applyFlowOperation(flowId, {
       type: "CHANGE_STATUS",
       request: { status: "ENABLED" },
     } as any);
@@ -745,7 +745,7 @@ workflowRoutes.post("/:flowId/disable", async (c) => {
   const client = c.get("imbraceClient");
   const flowId = c.req.param("flowId");
   try {
-    const data = await client.activepieces.applyFlowOperation(flowId, {
+    const data = await client.workflows.applyFlowOperation(flowId, {
       type: "CHANGE_STATUS",
       request: { status: "DISABLED" },
     } as any);
@@ -770,8 +770,8 @@ workflowRoutes.post("/:flowId/run", async (c) => {
 
   try {
     const fn = sync
-      ? client.activepieces.triggerFlowSync.bind(client.activepieces)
-      : client.activepieces.triggerFlow.bind(client.activepieces);
+      ? client.workflows.triggerFlowSync.bind(client.workflows)
+      : client.workflows.triggerFlow.bind(client.workflows);
     const data = await fn(flowId, payload);
     return c.json({
       ok: true,

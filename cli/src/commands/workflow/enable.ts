@@ -1,6 +1,6 @@
 import { Args, Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
-import { apiRequest } from "../../http.js";
+import { getClient } from "../../lib/client.js";
 
 export default class WorkflowEnable extends BaseCommand {
   static description = "Enable auto-trigger on a workflow. Requires `workflow publish` first.";
@@ -22,17 +22,19 @@ export default class WorkflowEnable extends BaseCommand {
     const { args, flags } = await this.parse(WorkflowEnable);
 
     try {
-      const res = await apiRequest<{ ok: boolean; message: string }>(
-        `/workflow/${args.flowId}/enable`,
-        { method: "POST", body: {} },
-      );
+      const client = getClient();
+      const data = await client.workflows.applyFlowOperation(args.flowId, {
+        type: "CHANGE_STATUS",
+        request: { status: "ENABLED" },
+      } as any);
+      const message = "Workflow enabled";
 
       if (flags.json) {
-        this.log(JSON.stringify(res, null, 2));
+        this.log(JSON.stringify({ ok: true, message, data }, null, 2));
         return;
       }
 
-      this.log(`\n✅ ${res.message}\n`);
+      this.log(`\n✅ ${message}\n`);
     } catch (error: any) {
       // Common error: trying to enable before publish
       if (/publishedFlowVersionId/.test(error.message || "")) {
