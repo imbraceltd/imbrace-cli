@@ -188,8 +188,12 @@ A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then 
 **Flow CRUD:**
 
 - `imbrace workflow list --json` — List all workflows and their IDs
+- `imbrace workflow list --folder-id <folderId> --json` — Filter to flows in one folder/category
+- `imbrace workflow list --folder-id NULL --json` — Only flows that aren't in any folder
 - `imbrace workflow get <flowId> --json` — Get details (including node tree)
 - `imbrace workflow create --name "My Flow" --json` — Create an empty workflow
+- `imbrace workflow create --name "X" --folder-id <folderId> --json` — Create directly inside a category folder
+- `imbrace workflow move <flowId> --folder-id <folderId>` — Move a flow into a folder. Pass `NULL` to unfile.
 - `imbrace workflow delete <flowId> --yes --json` — Delete a workflow
 
 **Discover available integrations (pieces):**
@@ -219,13 +223,24 @@ A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then 
 - `imbrace workflow conn create --piece <name> --type <T> --value "<token>" --json` — Save credential. `--type`: `SECRET_TEXT` | `OAUTH2` | `CLOUD_OAUTH2` | `BASIC_AUTH` | `CUSTOM_AUTH`
 - `imbrace workflow conn delete <connId> --yes` — Delete a connection
 
-**Folders (organize flows):**
+**Folders (organize flows — UI calls them "Categories"):**
 
 - `imbrace workflow folder list --json` — List all folders
 - `imbrace workflow folder get <folderId> --json` — Folder details
 - `imbrace workflow folder create --name "Sales" --json` — Create (auto-resolves projectId)
 - `imbrace workflow folder update <folderId> --name "Renamed" --json` — Rename
 - `imbrace workflow folder delete <folderId> --yes` — Delete (flows inside become unfiled, NOT deleted)
+
+The platform auto-creates 4 system folders that show up as Categories in the UI. Use `workflow folder list` to discover their IDs:
+
+| UI Category | Backend folder name | Purpose |
+|---|---|---|
+| `Channel Workflow` | `Channel Workflow` | Messaging / channel automation |
+| `Board Automation` | `Board Automation` | Triggered by data-board events; flows usually use the `automate-data-board` action with a `boardId` |
+| `AI Agent Skills` | `AI Agent Capabilities` | Skills callable by AI agents |
+| `Others` | `Others` | Default catch-all |
+
+To make a flow appear in a UI Category, place it in the matching system folder via `workflow create --folder-id <id>` or `workflow move <flowId> --folder-id <id>`. Flows created with no folder land in "All flows" only (not in any Category).
 
 **MCP servers (Model Context Protocol — let AI agents call piece tools):**
 
@@ -350,6 +365,10 @@ Most flows use only `PIECE_TRIGGER` + `PIECE`. For the other 3 types use `node a
 **Constraints when composing advanced nodes:**
 1. `LOOP_ON_ITEMS` and `CODE` must have a `parentStep` of type `trigger` or `PIECE`. Setting parent to a `ROUTER` (or another LOOP) returns 400 `Router step parent undefined not found`. To put a LOOP/CODE inside a router branch, build the inner action as part of the ROUTER's `children` array, not as a separate ADD_ACTION.
 2. `node list` only walks the linear `trigger → nextAction → nextAction` chain. Children of `ROUTER` (in `children: []`) and the body of `LOOP_ON_ITEMS` (in `firstLoopAction`) are stored server-side but not displayed by the flat list. Use `workflow get <flowId> --json` to see the full nested tree.
+
+**Gotchas when updating live flows:**
+- **Flow lock** — if the user has the flow open in their browser, CLI updates may be rejected with `"edited at the last minute, try again later"` or silently overwritten when the UI auto-saves. Ask the user to close the flow editor tab before bulk-updating via CLI; verify with `workflow get --json` that your changes stuck.
+- **AI Connector `assistant-request` prompt field** — the `prompt` input is a NESTED object, not a plain string. The UI form binds to `input.prompt.prompt`. Plain string values like `input.prompt = "text"` are accepted by the API but the UI renders the field as empty. Always send `{ "prompt": { "prompt": "actual text" } }`. The separate `custom_instructions` field IS a plain string and maps to the UI's "Custom Instructions" section.
 
 ### Raw operation shapes for advanced nodes
 

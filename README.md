@@ -228,7 +228,11 @@ A workflow (Activepieces) is a chain of nodes: a trigger fires, then actions run
 
 **Flow CRUD + run history**
 ```bash
-imbrace workflow list / get <id> / create --name / delete <id> --yes
+imbrace workflow list [--folder-id <id|NULL>]        # filter by category folder
+imbrace workflow get <id>
+imbrace workflow create --name "X" [--folder-id <id>]
+imbrace workflow move <flowId> --folder-id <id|NULL> # NULL = unfile
+imbrace workflow delete <id> --yes
 imbrace workflow runs                                # recent runs
 imbrace workflow run-detail <runId>
 ```
@@ -264,10 +268,21 @@ imbrace workflow disable <flowId>     # stop auto-trigger
 imbrace workflow run <flowId> --payload '{...}' [--sync]
 ```
 
-**Folders (organize flows)**
+**Folders (organize flows — UI calls them "Categories")**
 ```bash
 imbrace workflow folder list / get <id> / create --name / update <id> --name / delete <id> --yes
 ```
+
+The platform auto-creates 4 system folders that show up as Categories in the UI:
+
+| UI Category | Purpose | Folder name in API |
+|---|---|---|
+| Channel Workflow | Messaging / channel automation | `Channel Workflow` |
+| Board Automation | Triggered by data-board events | `Board Automation` |
+| AI Agent Skills | Skills callable by AI agents | `AI Agent Capabilities` |
+| Others | Everything else | `Others` |
+
+Use `workflow folder list` to discover their IDs, then `workflow create --folder-id <id>` or `workflow move <flowId> --folder-id <id>` to place a flow in a category. Pass `--folder-id NULL` to unfile.
 
 **MCP servers (Model Context Protocol — let AI agents call Activepieces tools)**
 ```bash

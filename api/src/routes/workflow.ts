@@ -111,11 +111,17 @@ workflowRoutes.get("/runs/:runId", async (c) => {
   }
 });
 
-// GET /workflow/list
+// GET /workflow/list?folderId=<id|NULL>
+//   folderId omitted → all flows
+//   folderId=NULL    → only flows not in any folder (unfiled)
+//   folderId=<id>    → only flows in that folder
 workflowRoutes.get("/list", async (c) => {
   const client = c.get("imbraceClient");
+  const folderId = c.req.query("folderId");
   try {
-    const res = await client.activepieces.listFlows();
+    const params: Record<string, string> = {};
+    if (folderId) params.folderId = folderId;
+    const res = await client.activepieces.listFlows(params as any);
     const data = (res as any)?.data ?? [];
     return c.json({ ok: true, count: data.length, data });
   } catch (error: any) {
@@ -136,7 +142,7 @@ workflowRoutes.get("/:id", async (c) => {
 });
 
 // POST /workflow/create
-// Body: { name: string, projectId?: string }
+// Body: { name: string, projectId?: string, folderId?: string }
 workflowRoutes.post("/create", async (c) => {
   const client = c.get("imbraceClient");
   const body = await c.req.json();
@@ -144,11 +150,36 @@ workflowRoutes.post("/create", async (c) => {
 
   try {
     const projectId = body.projectId || (await resolveProjectId(client));
-    const data = await client.activepieces.createFlow({
+    const createBody: Record<string, any> = {
       displayName: body.name,
       projectId,
-    });
+    };
+    if (body.folderId) createBody.folderId = body.folderId;
+    const data = await client.activepieces.createFlow(createBody);
     return c.json({ ok: true, message: `Workflow "${body.name}" created`, data });
+  } catch (error: any) {
+    return c.json({ ok: false, message: error?.message }, 500);
+  }
+});
+
+// POST /workflow/:id/move — move flow to a folder (or unfile with folderId=null)
+// Body: { folderId: string | null }
+workflowRoutes.post("/:id/move", async (c) => {
+  const client = c.get("imbraceClient");
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  if (!("folderId" in body)) {
+    return c.json({ ok: false, message: "folderId is required (string or null)" }, 400);
+  }
+
+  try {
+    const op = {
+      type: "CHANGE_FOLDER",
+      request: { folderId: body.folderId },
+    };
+    const data = await client.activepieces.applyFlowOperation(id, op as any);
+    const target = body.folderId ?? "(unfiled)";
+    return c.json({ ok: true, message: `Workflow moved to ${target}`, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);
   }
