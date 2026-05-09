@@ -6,7 +6,7 @@
     "start": "bun run src/index.ts"
   },
   "dependencies": {
-    "@imbrace/sdk": "^1.0.3",
+    "@imbrace/sdk": "^1.0.4",
     "hono": "^4.7.0"
   },
   "devDependencies": {

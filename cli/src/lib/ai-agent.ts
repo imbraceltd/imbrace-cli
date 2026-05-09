@@ -115,7 +115,7 @@ export async function updateAgent(id: string, body: Record<string, any>) {
       ASSISTANT_FIELDS.some((f) => body[f] !== undefined));
 
   if (hasAssistantUpdate) {
-    // chatAi.updateAssistant uses PUT (full replace) — fetch+merge so unchanged
+    // chatAi.updateAiAgent uses PUT (full replace) — fetch+merge so unchanged
     // fields aren't reset to null.
     const currentAssistant = await gatewayFetch<any>(`/v3/ai/assistants/${assistantId}`);
 
@@ -134,7 +134,7 @@ export async function updateAgent(id: string, body: Record<string, any>) {
     for (const f of ASSISTANT_FIELDS) {
       if (body[f] !== undefined) aUpdate[f] = body[f];
     }
-    results.assistant = await client.chatAi.updateAssistant(assistantId, aUpdate);
+    results.assistant = await client.chatAi.updateAiAgent(assistantId, aUpdate);
   }
 
   if (body.name || body.description) {

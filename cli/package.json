@@ -1,6 +1,6 @@
 {
   "name": "@imbrace/cli",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "description": "CLI tool for interacting with the Imbrace CRM platform from the terminal",
   "repository": {
@@ -24,7 +24,7 @@
     "prepack": "oclif manifest"
   },
   "dependencies": {
-    "@imbrace/sdk": "^1.0.3",
+    "@imbrace/sdk": "^1.0.4",
     "@inquirer/prompts": "^7.10.1",
     "@oclif/core": "^4.2.0",
     "@oclif/plugin-autocomplete": "^3.2.0",
