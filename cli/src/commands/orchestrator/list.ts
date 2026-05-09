@@ -21,8 +21,12 @@ export default class OrchestratorList extends BaseCommand {
       const client = getClient();
       const res = await client.agent.list() as any;
       const all: any[] = (res?.data ?? res ?? []) as any[];
-      // SDK doesn't filter is_orchestrator server-side; do it client-side.
-      const data = all.filter((a) => a.is_orchestrator === true || a.assistant?.is_orchestrator === true);
+      // Webapp identifies orchestrators via agent_type === "team_lead"
+      // (see new-frontend/.../useAIAssistantFormHook.tsx). Filter client-side.
+      const data = all.filter((a) =>
+        a.agent_type === "team_lead" ||
+        a.assistant?.agent_type === "team_lead",
+      );
 
       if (flags.json) {
         this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
@@ -30,15 +34,14 @@ export default class OrchestratorList extends BaseCommand {
       }
 
       this.log(`\n  Found ${data.length} orchestrator(s):\n`);
-      this.log("  ID                                    TITLE                 SUB-AGENTS");
-      this.log("  ───────────────────────────────────────────────────────────────────────");
+      this.log("  ID                                    TITLE");
+      this.log("  ────────────────────────────────────────────────────────────");
       for (const a of data) {
         const id = (a._id || a.id || "").padEnd(38);
-        const title = (a.title || a.name || "").padEnd(22);
-        const subs = (a.sub_agents || a.assistant?.sub_agents || []).length;
-        this.log(`  ${id}  ${title}  ${subs}`);
+        const title = a.title || a.name || "";
+        this.log(`  ${id}  ${title}`);
       }
-      this.log("");
+      this.log(`\n  Use 'imbrace orchestrator get <id>' to see sub_agents.\n`);
     } catch (error: any) {
       this.error(`Failed: ${error.message}`);
     }

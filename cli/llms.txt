@@ -188,14 +188,17 @@ If the user describes an agent in Vietnamese, translate the full payload to Engl
 
 ## Orchestrator Commands
 
-An Orchestrator is an AI Agent flagged with `is_orchestrator: true` that delegates work to `sub_agents` / `team_leads`. Mirrors the "Orchestrator" choice in the UI's Create dialog.
+An Orchestrator is an AI Agent stored with `agent_type: "team_lead"` that delegates work to `sub_agents` / `team_leads`. Mirrors the "Orchestrator" choice in the UI's Create dialog.
 
-- `imbrace orchestrator list --json` — Filters AI Agents where `is_orchestrator=true` (client-side; SDK has no server filter).
-- `imbrace orchestrator get <id> --json`
+- `imbrace orchestrator list --json` — Filters AI Agents where `agent_type=team_lead` (client-side; SDK has no server filter).
+- `imbrace orchestrator get <id> --json` — Fetches the use case + underlying assistant; sub_agents are stored on the assistant.
 - `imbrace orchestrator create -n "Name" -i "Routing instructions" --sub-agents id1,id2 [--team-leads id3] [--model] [--provider-id] [--temperature] --json`
 - `imbrace orchestrator delete <id> --yes --json`
 
-⚠️ **Known issue**: backend may not honor `is_orchestrator: true` from the standard `createUseCase` payload — the agent is created but the flag may not stick. If you see `is_orchestrator: false` after create, set it via UI for now (CLI command kept for forward-compat once backend is fixed).
+**Implementation notes** (the platform has 2 quirks the CLI works around for you — useful to know if you debug):
+- Orchestrator-ness is encoded as `agent_type: "team_lead"` (NOT a separate `is_orchestrator` boolean). The webapp does the same conversion.
+- `sub_agents` / `team_leads` must be **assistant IDs (UUIDs)**, not use-case IDs (`uc_*`). CLI auto-resolves any `uc_*` you pass via `client.agent.get()` lookup.
+- `createUseCase` ignores both fields above on the assistant payload, so the CLI does a 2-step: create → `chatAi.updateAiAgent` PUT to apply them.
 
 ## Guardrail Commands
 

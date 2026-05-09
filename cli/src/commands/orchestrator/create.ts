@@ -1,7 +1,7 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
-import { createAgent } from "../../lib/ai-agent.js";
+import { createAgent, patchOrchestratorFields } from "../../lib/ai-agent.js";
 
 export default class OrchestratorCreate extends BaseCommand {
   static description = "Create an Orchestrator agent (coordinates multiple sub-agents toward a shared goal)";
@@ -45,6 +45,15 @@ export default class OrchestratorCreate extends BaseCommand {
 
     try {
       const data = await createAgent(body as any);
+      const useCaseId = (data as any)?._id ?? "";
+      // createUseCase ignores sub_agents/team_leads on the assistant block.
+      // Patch them in via chatAi.updateAiAgent after the agent record exists.
+      if (useCaseId && (body.sub_agents.length || body.team_leads.length)) {
+        await patchOrchestratorFields(useCaseId, {
+          sub_agents: body.sub_agents,
+          team_leads: body.team_leads,
+        });
+      }
       const message = `Orchestrator "${name}" created`;
 
       if (flags["id-only"]) {
