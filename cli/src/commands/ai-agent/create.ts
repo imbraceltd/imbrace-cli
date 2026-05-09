@@ -21,6 +21,10 @@ export default class AiAgentCreate extends BaseCommand {
     model: Flags.string({ description: "LLM model (e.g. gpt-4o, qwen3.5-27b). Default: gpt-4o" }),
     "provider-id": Flags.string({ description: "LLM provider ID. Default 'system'. Use 'imbrace ai-agent list-providers' to discover." }),
     mode: Flags.string({ description: "Agent mode (default: standard)", options: ["standard", "advanced"] }),
+    "agent-type": Flags.string({
+      description: "Agent type (default: agent). For Document AI, use `imbrace document-ai create` instead.",
+      options: ["agent", "assistant", "conversational", "workflow"],
+    }),
     temperature: Flags.string({ description: "Model temperature 0.0-2.0 (default: 0.1). Lower = deterministic, higher = creative." }),
     // Behavior Settings (UI tab)
     personality: Flags.string({ description: "Agent personality / role (e.g. 'You are a friendly support rep')" }),
@@ -63,6 +67,7 @@ export default class AiAgentCreate extends BaseCommand {
       ...(flags.model && { model: flags.model }),
       ...(flags["provider-id"] && { provider_id: flags["provider-id"] }),
       ...(flags.mode && { mode: flags.mode }),
+      ...(flags["agent-type"] && { agent_type: flags["agent-type"] }),
       ...(flags.temperature && { temperature: parseFloat(flags.temperature) }),
       ...(flags.personality && { personality_role: flags.personality }),
       ...(flags["core-task"] && { core_task: flags["core-task"] }),

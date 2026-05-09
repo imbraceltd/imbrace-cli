@@ -182,6 +182,31 @@ The route mirrors the frontend `createCustomUseCase` payload (see `new-frontend/
 
 If the user describes an agent in Vietnamese, translate the full payload to English before calling `imbrace ai-agent create`.
 
+### Agent types
+
+`imbrace ai-agent create` defaults to `agent_type: "agent"`. Override with `--agent-type` (options: `agent | assistant | conversational | workflow`). For `document_ai`, use the dedicated topic below.
+
+## Document AI Commands
+
+A Document AI agent extracts structured JSON from unstructured documents (PDFs, images, scanned forms). Each agent has a **schema** defining fields to extract, **instructions** guiding the LLM, and a **model + provider**. Backend stores them as AI Agents with `agent_type: "document_ai"`.
+
+- `imbrace document-ai list [--search <q>] [--all] --json` — List Document AI agents. `--all` includes regular agents (default: `documentAiOnly`).
+- `imbrace document-ai get <agentId> --json` — Show details + extraction schema.
+- `imbrace document-ai create -n "X" -i "instructions" --model gpt-4o --schema '<json>' [--provider-id <uuid>] [--description] [--workflow-name] --json` — Create. Schema can also be loaded from a file via `--schema-file ./schema.json`.
+- `imbrace document-ai update <agentId> [--name|--instructions|--model|--provider-id|--schema|--schema-file|--description|--workflow-name] --json` — Partial update.
+- `imbrace document-ai delete <agentId> --yes --json`
+- `imbrace document-ai process --url <url> --org-id <orgId> [--agent-id <id>] [--model] [--instructions] [--board-id] [--language] [--additional-instructions] [--chunk-size] [--max-concurrent] [--max-retries] [--no-enhanced-processing] --json` — Run extraction on a PDF/image URL. Either `--agent-id` or `--model` is required.
+- `imbrace document-ai suggest-schema --url <url> --org-id <orgId> [--model] --json` — Ask the LLM to inspect a sample document and propose a schema.
+
+Schema example:
+```json
+{
+  "invoice_number": { "type": "string", "description": "Invoice ID" },
+  "total_amount":   { "type": "number" },
+  "due_date":       { "type": "string", "format": "date" }
+}
+```
+
 ## Workflow Commands
 
 A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then actions run in sequence. Use it for automation — e.g. "when Slack message arrives → ask AI → reply to thread".

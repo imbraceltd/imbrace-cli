@@ -11,6 +11,7 @@ export interface CreateAgentInput {
   model?: string;
   provider_id?: string;
   mode?: string;
+  agent_type?: string;
   channel?: string;
   category?: string[] | string;
   // Behavior Settings
@@ -38,11 +39,13 @@ export async function createAgent(body: CreateAgentInput) {
   const slug = body.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   const workflowName = `${slug}_v${Date.now()}`;
 
+  const agentType = body.agent_type || "agent";
+
   const data = await client.agent.createUseCase({
     usecase: {
       title: body.name,
       short_description: body.description || "",
-      agent_type: "agent",
+      agent_type: agentType,
       demo_url: "https://chat-widgetv2.imbrace.co",
       supported_channels: [{ title: "channel_", icon: "" }],
     },
@@ -54,7 +57,7 @@ export async function createAgent(body: CreateAgentInput) {
       credential_name: `${body.mode || "standard"} | ${body.name}`,
       provider_id: body.provider_id || "system",
       model_id: body.model || "Default",
-      agent_type: "agent",
+      agent_type: agentType,
       mode: body.mode || "standard",
       version: 2,
       channel: body.channel || "",
