@@ -11,6 +11,7 @@ export interface CreateAgentInput {
   model?: string;
   provider_id?: string;
   mode?: string;
+  agent_type?: string;
   channel?: string;
   category?: string[] | string;
   // Behavior Settings
@@ -31,6 +32,10 @@ export interface CreateAgentInput {
   default_folder_id?: string;
   board_ids?: string[];
   file_ids?: string[];
+  // Orchestrator
+  is_orchestrator?: boolean;
+  sub_agents?: string[];
+  team_leads?: string[];
 }
 
 export async function createAgent(body: CreateAgentInput) {
@@ -38,11 +43,20 @@ export async function createAgent(body: CreateAgentInput) {
   const slug = body.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   const workflowName = `${slug}_v${Date.now()}`;
 
+  // Orchestrator detection: webapp encodes orchestrator-ness via
+  // `agent_type: "team_lead"`, not via a separate `is_orchestrator` field.
+  // (See new-frontend/src/pages/AIAssistantManagement/useAIAssistantFormHook.tsx:
+  // `is_orchestrator: responseData.agent_type === agentTypeValue.teamLead`.)
+  const agentType =
+    body.is_orchestrator || body.agent_type === "team_lead"
+      ? "team_lead"
+      : (body.agent_type || "agent");
+
   const data = await client.agent.createUseCase({
     usecase: {
       title: body.name,
       short_description: body.description || "",
-      agent_type: "agent",
+      agent_type: agentType,
       demo_url: "https://chat-widgetv2.imbrace.co",
       supported_channels: [{ title: "channel_", icon: "" }],
     },
@@ -54,7 +68,7 @@ export async function createAgent(body: CreateAgentInput) {
       credential_name: `${body.mode || "standard"} | ${body.name}`,
       provider_id: body.provider_id || "system",
       model_id: body.model || "Default",
-      agent_type: "agent",
+      agent_type: agentType,
       mode: body.mode || "standard",
       version: 2,
       channel: body.channel || "",
@@ -76,8 +90,9 @@ export async function createAgent(body: CreateAgentInput) {
       board_ids: body.board_ids || [],
       file_ids: body.file_ids || [],
       workflow_function_call: [],
-      sub_agents: [],
-      team_leads: [],
+      sub_agents: body.sub_agents || [],
+      team_leads: body.team_leads || [],
+      is_orchestrator: body.is_orchestrator ?? false,
       metadata: {
         other_requirements: [],
         channel_id: "",
@@ -148,6 +163,57 @@ export async function updateAgent(id: string, body: Record<string, any>) {
     throw new Error("No update fields provided");
   }
   return results;
+}
+
+// Resolve a list of agent identifiers (mix of UseCase IDs `uc_xxx` and bare
+// assistant UUIDs) into their assistant_id form. The orchestrator backend
+// stores `sub_agents` as assistant IDs, NOT use-case IDs.
+async function resolveAssistantIds(ids: string[]): Promise<string[]> {
+  const client = getClient();
+  const out: string[] = [];
+  for (const id of ids) {
+    if (!id) continue;
+    if (id.startsWith("uc_")) {
+      try {
+        const tpl = (await client.agent.get(id) as any)?.data ?? {};
+        if (tpl.assistant_id) out.push(tpl.assistant_id);
+      } catch {
+        // Unknown UseCase — skip with no error so partial input still works.
+      }
+    } else {
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+// For orchestrators: createUseCase ignores `sub_agents` / `team_leads` /
+// `agent_type=team_lead` fields on the assistant block. We work around by
+// following up with a chatAi.updateAiAgent PUT once the use case + assistant
+// exist. Backend stores them as assistant IDs (UUIDs), so we resolve any
+// `uc_*` use-case IDs into assistant IDs first.
+export async function patchOrchestratorFields(
+  useCaseId: string,
+  patch: { sub_agents?: string[]; team_leads?: string[] },
+) {
+  const client = getClient();
+  const tpl = (await client.agent.get(useCaseId) as any)?.data ?? {};
+  const assistantId = tpl.assistant_id;
+  if (!assistantId) return;
+
+  const subAgentAssistantIds = patch.sub_agents
+    ? await resolveAssistantIds(patch.sub_agents)
+    : undefined;
+  const teamLeadAssistantIds = patch.team_leads
+    ? await resolveAssistantIds(patch.team_leads)
+    : undefined;
+
+  const current = await gatewayFetch<any>(`/v3/ai/assistants/${assistantId}`);
+  await client.chatAi.updateAiAgent(assistantId, {
+    ...current,
+    ...(subAgentAssistantIds && { sub_agents: subAgentAssistantIds }),
+    ...(teamLeadAssistantIds && { team_leads: teamLeadAssistantIds }),
+  });
 }
 
 export async function listProviders() {

@@ -182,6 +182,61 @@ The route mirrors the frontend `createCustomUseCase` payload (see `new-frontend/
 
 If the user describes an agent in Vietnamese, translate the full payload to English before calling `imbrace ai-agent create`.
 
+### Agent types
+
+`imbrace ai-agent create` defaults to `agent_type: "agent"`. Override with `--agent-type` (options: `agent | assistant | conversational | workflow`). For `document_ai`, use the dedicated topic below.
+
+## Orchestrator Commands
+
+An Orchestrator is an AI Agent stored with `agent_type: "team_lead"` that delegates work to `sub_agents` / `team_leads`. Mirrors the "Orchestrator" choice in the UI's Create dialog.
+
+- `imbrace orchestrator list --json` — Filters AI Agents where `agent_type=team_lead` (client-side; SDK has no server filter).
+- `imbrace orchestrator get <id> --json` — Fetches the use case + underlying assistant; sub_agents are stored on the assistant.
+- `imbrace orchestrator create -n "Name" -i "Routing instructions" --sub-agents id1,id2 [--team-leads id3] [--model] [--provider-id] [--temperature] --json`
+- `imbrace orchestrator delete <id> --yes --json`
+
+**Implementation notes** (the platform has 2 quirks the CLI works around for you — useful to know if you debug):
+- Orchestrator-ness is encoded as `agent_type: "team_lead"` (NOT a separate `is_orchestrator` boolean). The webapp does the same conversion.
+- `sub_agents` / `team_leads` must be **assistant IDs (UUIDs)**, not use-case IDs (`uc_*`). CLI auto-resolves any `uc_*` you pass via `client.agent.get()` lookup.
+- `createUseCase` ignores both fields above on the assistant payload, so the CLI does a 2-step: create → `chatAi.updateAiAgent` PUT to apply them.
+
+## Guardrail Commands
+
+A Guardrail is a content-safety / compliance layer attached to AI Agents via `--guardrail-id`. Mirrors the "Guard Rail" choice in the UI's Create dialog.
+
+- `imbrace guardrail list --json`
+- `imbrace guardrail get <id> --json`
+- `imbrace guardrail create -n "Name" -i "Block PII" [--model nim-nemo|model-armor] [--guardrail-provider-id <uuid>] [--unsafe-categories "violence,hate"] [--custom-unsafe-patterns "regex1,regex2"] [--competitor-keywords "X,Y"] --json`
+- `imbrace guardrail update <id> -n -i --model [partial] --json` — PUT (full replace; name/model/instructions required).
+- `imbrace guardrail delete <id> --yes --json`
+
+**Implementation notes** (CLI handles these for you — useful when reading raw SDK output):
+- Default model is `nim-nemo` (NVIDIA NIM Nemo). `model-armor` (Google) is the other built-in option; for any other model, pass `--guardrail-provider-id` referencing a custom guardrail provider.
+- Backend requires `org_id` — CLI auto-fetches it via `client.account.getAccount()`. Override with `--org-id` if needed.
+- `model-armor` ignores `instructions`, `custom_unsafe_patterns`, and `competitor_keywords`. CLI strips them automatically when `--model model-armor`.
+- ID field returned by backend is `guardrails_config_id`, not `_id`. CLI normalizes both internally so `--id-only` and `get <id>` work as expected.
+
+## Document AI Commands
+
+A Document AI agent extracts structured JSON from unstructured documents (PDFs, images, scanned forms). Each agent has a **schema** defining fields to extract, **instructions** guiding the LLM, and a **model + provider**. Backend stores them as AI Agents with `agent_type: "document_ai"`.
+
+- `imbrace document-ai list [--search <q>] [--all] --json` — List Document AI agents. `--all` includes regular agents (default: `documentAiOnly`).
+- `imbrace document-ai get <agentId> --json` — Show details + extraction schema.
+- `imbrace document-ai create -n "X" -i "instructions" --model gpt-4o --schema '<json>' [--provider-id <uuid>] [--description] [--workflow-name] --json` — Create. Schema can also be loaded from a file via `--schema-file ./schema.json`.
+- `imbrace document-ai update <agentId> [--name|--instructions|--model|--provider-id|--schema|--schema-file|--description|--workflow-name] --json` — Partial update.
+- `imbrace document-ai delete <agentId> --yes --json`
+- `imbrace document-ai process --url <url> --org-id <orgId> [--agent-id <id>] [--model] [--instructions] [--board-id] [--language] [--additional-instructions] [--chunk-size] [--max-concurrent] [--max-retries] [--no-enhanced-processing] --json` — Run extraction on a PDF/image URL. Either `--agent-id` or `--model` is required.
+- `imbrace document-ai suggest-schema --url <url> --org-id <orgId> [--model] --json` — Ask the LLM to inspect a sample document and propose a schema.
+
+Schema example:
+```json
+{
+  "invoice_number": { "type": "string", "description": "Invoice ID" },
+  "total_amount":   { "type": "number" },
+  "due_date":       { "type": "string", "format": "date" }
+}
+```
+
 ## Workflow Commands
 
 A workflow (powered by Activepieces) is a chain of nodes: a trigger fires, then actions run in sequence. Use it for automation — e.g. "when Slack message arrives → ask AI → reply to thread".
