@@ -32,7 +32,7 @@ export default class GuardrailGet extends BaseCommand {
         return;
       }
 
-      this.log(`\n  ID:                ${data._id || ""}`);
+      this.log(`\n  ID:                ${data.guardrails_config_id || data._id || ""}`);
       this.log(`  Name:              ${data.name || ""}`);
       this.log(`  Model:             ${data.model || ""}`);
       this.log(`  Provider ID:       ${data.guardrail_provider_id || ""}`);

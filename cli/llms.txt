@@ -206,11 +206,15 @@ A Guardrail is a content-safety / compliance layer attached to AI Agents via `--
 
 - `imbrace guardrail list --json`
 - `imbrace guardrail get <id> --json`
-- `imbrace guardrail create -n "Name" --model gpt-4o-mini -i "Block PII" [--guardrail-provider-id <uuid>] [--unsafe-categories "violence,hate"] [--custom-unsafe-patterns "regex1,regex2"] [--competitor-keywords "X,Y"] --json`
+- `imbrace guardrail create -n "Name" -i "Block PII" [--model nim-nemo|model-armor] [--guardrail-provider-id <uuid>] [--unsafe-categories "violence,hate"] [--custom-unsafe-patterns "regex1,regex2"] [--competitor-keywords "X,Y"] --json`
 - `imbrace guardrail update <id> -n -i --model [partial] --json` — PUT (full replace; name/model/instructions required).
 - `imbrace guardrail delete <id> --yes --json`
 
-⚠️ **Known issue**: `createGuardrail` may return `[400] Invalid input` from the backend even with documented fields. Required field set is not fully documented in the SDK schema. Until clarified, create guardrails via UI and reference the `_id` with `imbrace ai-agent create --guardrail-id <id>`.
+**Implementation notes** (CLI handles these for you — useful when reading raw SDK output):
+- Default model is `nim-nemo` (NVIDIA NIM Nemo). `model-armor` (Google) is the other built-in option; for any other model, pass `--guardrail-provider-id` referencing a custom guardrail provider.
+- Backend requires `org_id` — CLI auto-fetches it via `client.account.getAccount()`. Override with `--org-id` if needed.
+- `model-armor` ignores `instructions`, `custom_unsafe_patterns`, and `competitor_keywords`. CLI strips them automatically when `--model model-armor`.
+- ID field returned by backend is `guardrails_config_id`, not `_id`. CLI normalizes both internally so `--id-only` and `get <id>` work as expected.
 
 ## Document AI Commands
 

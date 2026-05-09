@@ -20,10 +20,11 @@ export default class GuardrailList extends BaseCommand {
     try {
       const client = getClient();
       const res = await client.ai.listGuardrails() as any;
-      const data: any[] = res?.data ?? [];
+      // Backend returns a raw array, not { data, total }.
+      const data: any[] = Array.isArray(res) ? res : (res?.data ?? []);
 
       if (flags.json) {
-        this.log(JSON.stringify({ ok: true, count: data.length, total: res?.total ?? data.length, data }, null, 2));
+        this.log(JSON.stringify({ ok: true, count: data.length, data }, null, 2));
         return;
       }
 
@@ -31,7 +32,8 @@ export default class GuardrailList extends BaseCommand {
       this.log("  ID                                    NAME                          MODEL");
       this.log("  ──────────────────────────────────────────────────────────────────────────────");
       for (const g of data) {
-        const id = (g._id || "").padEnd(38);
+        // Backend's id field is `guardrails_config_id`, not `_id`.
+        const id = (g.guardrails_config_id || g._id || "").padEnd(38);
         const name = (g.name || "").padEnd(28);
         const model = g.model || "";
         this.log(`  ${id}  ${name}  ${model}`);
