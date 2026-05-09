@@ -238,7 +238,7 @@ aiAgentRoutes.put("/:id", async (c) => {
         assistantFields.some((f) => body[f] !== undefined));
 
     if (hasAssistantUpdate) {
-      // SDK chatAi.updateAssistant uses PUT (full replace) — fields not in the
+      // SDK chatAi.updateAiAgent uses PUT (full replace) — fields not in the
       // body get reset to null. Fetch current assistant first and merge so that
       // unchanged fields are preserved.
       const credential = c.get("credential");
@@ -265,7 +265,7 @@ aiAgentRoutes.put("/:id", async (c) => {
       for (const f of assistantFields) {
         if (body[f] !== undefined) aUpdate[f] = body[f];
       }
-      results.assistant = await client.chatAi.updateAssistant(assistantId, aUpdate);
+      results.assistant = await client.chatAi.updateAiAgent(assistantId, aUpdate);
     }
 
     // Field group 2 — template fields (title + short_description show on the UI card)
