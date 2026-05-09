@@ -186,6 +186,29 @@ If the user describes an agent in Vietnamese, translate the full payload to Engl
 
 `imbrace ai-agent create` defaults to `agent_type: "agent"`. Override with `--agent-type` (options: `agent | assistant | conversational | workflow`). For `document_ai`, use the dedicated topic below.
 
+## Orchestrator Commands
+
+An Orchestrator is an AI Agent flagged with `is_orchestrator: true` that delegates work to `sub_agents` / `team_leads`. Mirrors the "Orchestrator" choice in the UI's Create dialog.
+
+- `imbrace orchestrator list --json` — Filters AI Agents where `is_orchestrator=true` (client-side; SDK has no server filter).
+- `imbrace orchestrator get <id> --json`
+- `imbrace orchestrator create -n "Name" -i "Routing instructions" --sub-agents id1,id2 [--team-leads id3] [--model] [--provider-id] [--temperature] --json`
+- `imbrace orchestrator delete <id> --yes --json`
+
+⚠️ **Known issue**: backend may not honor `is_orchestrator: true` from the standard `createUseCase` payload — the agent is created but the flag may not stick. If you see `is_orchestrator: false` after create, set it via UI for now (CLI command kept for forward-compat once backend is fixed).
+
+## Guardrail Commands
+
+A Guardrail is a content-safety / compliance layer attached to AI Agents via `--guardrail-id`. Mirrors the "Guard Rail" choice in the UI's Create dialog.
+
+- `imbrace guardrail list --json`
+- `imbrace guardrail get <id> --json`
+- `imbrace guardrail create -n "Name" --model gpt-4o-mini -i "Block PII" [--guardrail-provider-id <uuid>] [--unsafe-categories "violence,hate"] [--custom-unsafe-patterns "regex1,regex2"] [--competitor-keywords "X,Y"] --json`
+- `imbrace guardrail update <id> -n -i --model [partial] --json` — PUT (full replace; name/model/instructions required).
+- `imbrace guardrail delete <id> --yes --json`
+
+⚠️ **Known issue**: `createGuardrail` may return `[400] Invalid input` from the backend even with documented fields. Required field set is not fully documented in the SDK schema. Until clarified, create guardrails via UI and reference the `_id` with `imbrace ai-agent create --guardrail-id <id>`.
+
 ## Document AI Commands
 
 A Document AI agent extracts structured JSON from unstructured documents (PDFs, images, scanned forms). Each agent has a **schema** defining fields to extract, **instructions** guiding the LLM, and a **model + provider**. Backend stores them as AI Agents with `agent_type: "document_ai"`.

@@ -32,6 +32,10 @@ export interface CreateAgentInput {
   default_folder_id?: string;
   board_ids?: string[];
   file_ids?: string[];
+  // Orchestrator
+  is_orchestrator?: boolean;
+  sub_agents?: string[];
+  team_leads?: string[];
 }
 
 export async function createAgent(body: CreateAgentInput) {
@@ -79,8 +83,9 @@ export async function createAgent(body: CreateAgentInput) {
       board_ids: body.board_ids || [],
       file_ids: body.file_ids || [],
       workflow_function_call: [],
-      sub_agents: [],
-      team_leads: [],
+      sub_agents: body.sub_agents || [],
+      team_leads: body.team_leads || [],
+      is_orchestrator: body.is_orchestrator ?? false,
       metadata: {
         other_requirements: [],
         channel_id: "",

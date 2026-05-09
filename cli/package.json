@@ -56,6 +56,12 @@
       "document-ai": {
         "description": "Manage Document AI agents (extract structured JSON from PDFs/images) — run `imbrace document-ai --help`"
       },
+      "orchestrator": {
+        "description": "Manage Orchestrator agents (coordinate sub-agents toward a shared goal) — run `imbrace orchestrator --help`"
+      },
+      "guardrail": {
+        "description": "Manage Guardrails (safety rules + compliance constraints) — run `imbrace guardrail --help`"
+      },
       "workflow": {
         "description": "Manage workflows (Activepieces) — run `imbrace workflow --help` to see all commands"
       },
