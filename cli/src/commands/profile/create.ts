@@ -78,6 +78,6 @@ export default class ProfileCreate extends Command {
 
     this.log(`\n✅ ${message}`);
     this.log(`\n  Use it:    imbrace profile use ${args.name}`);
-    this.log(`  Per-call:  imbrace --profile ${args.name} workflow list\n`);
+    this.log(`  Per-call:  imbrace workflow list --profile ${args.name}\n`);
   }
 }
