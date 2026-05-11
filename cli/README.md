@@ -42,6 +42,50 @@ Credentials are stored via the `conf` package — exact path depends on OS:
 | Linux | `~/.config/imbrace-nodejs/config.json` |
 | Windows | `%APPDATA%\imbrace-nodejs\Config\config.json` |
 
+## Profiles (multi-account, AWS-style)
+
+One CLI install can manage multiple accounts / environments — work + personal, cloud + sandbox, even fully self-hosted Imbrace instances. Each "profile" is a named credential set mapping 1:1 to the SDK `ImbraceClientConfig`.
+
+```bash
+# Create profiles
+imbrace profile create work     --api-key api_aaa... --env stable
+imbrace profile create sandbox  --api-key api_bbb... --env sandbox
+imbrace profile create selfhost --api-key api_xxx... --base-url https://imbrace.acme.com --org-id org_acme
+
+# List + switch
+imbrace profile list                       # shows active marker (*)
+imbrace profile use sandbox                # switch active
+imbrace profile show selfhost              # full details
+
+# Per-call override
+imbrace --profile sandbox workflow list
+IMBRACE_PROFILE=sandbox imbrace workflow list     # via env var
+
+# Manage
+imbrace profile rename old new
+imbrace profile delete sandbox --yes
+```
+
+**Resolution order** (highest priority first):
+1. `--profile <name>` flag
+2. `IMBRACE_PROFILE` env var
+3. `active_profile` saved in config
+4. `"default"` fallback
+
+**Per-profile config** — every SDK field is exposed:
+
+| Profile field | SDK option | Use |
+|---|---|---|
+| `--api-key` / login `--email` `--password` | `apiKey` / `accessToken` | Credential |
+| `--env` (`stable` / `sandbox` / `develop` / `prodv2`) | `env` | Pick preset gateway |
+| `--base-url <url>` | `baseUrl` | Override gateway entirely (self-host) |
+| `--org-id <id>` | `organizationId` | `x-organization-id` header |
+| `--timeout <ms>` | `timeout` | Request timeout (default 30000) |
+| `--check-health` | `checkHealth` | Ping `/global/health` on init |
+| `--services '<json>'` | `services` | Per-microservice URL override |
+
+Legacy pre-v0.6 configs are auto-migrated into a `default` profile on first run — existing users see no change.
+
 ---
 
 ## Commands
