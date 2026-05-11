@@ -58,7 +58,7 @@ imbrace profile use sandbox                # switch active
 imbrace profile show selfhost              # full details
 
 # Per-call override
-imbrace --profile sandbox workflow list
+imbrace workflow list --profile sandbox
 IMBRACE_PROFILE=sandbox imbrace workflow list     # via env var
 
 # Manage

@@ -1,5 +1,5 @@
 import { Args, Command, Flags } from "@oclif/core";
-import { getProfile, resolveProfileName } from "../../config.js";
+import { getProfile, profileExists, resolveProfileName } from "../../config.js";
 
 export default class ProfileShow extends Command {
   static description = "Show details of a profile (defaults to the active one)";
@@ -20,11 +20,10 @@ export default class ProfileShow extends Command {
   async run() {
     const { args, flags } = await this.parse(ProfileShow);
     const name = resolveProfileName(args.name);
-    const p = getProfile(name);
-
-    if (!p.credential) {
-      this.error(`Profile "${name}" not found or empty. Run: imbrace profile list`);
+    if (!profileExists(name)) {
+      this.error(`Profile "${name}" does not exist. Run: imbrace profile list`);
     }
+    const p = getProfile(name);
 
     if (flags.json) {
       this.log(JSON.stringify({

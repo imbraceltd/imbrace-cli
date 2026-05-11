@@ -53,7 +53,7 @@ Example — work + sandbox setup:
 imbrace profile create work    --api-key api_aaa... --env stable
 imbrace profile create sandbox --api-key api_bbb... --env sandbox
 imbrace profile use work             # active
-imbrace --profile sandbox workflow list   # per-call override
+imbrace workflow list --profile sandbox   # per-call override
 IMBRACE_PROFILE=sandbox imbrace workflow list  # env override
 ```
 
