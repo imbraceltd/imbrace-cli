@@ -15,6 +15,48 @@ Things to remember when using Imbrace CLI:
 - Field types available (16): `ShortText`, `LongText`, `Number`, `Date`, `Email`, `Phone`, `Currency`, `SingleSelection`, `MultipleSelection`, `Checkbox`, `Assignee`, `MultipleAssignee`, `Link`, `Notes`, `Origin`, `Priority`. **Do NOT use `Dropdown`** — backend rejects it (use `SingleSelection` instead).
 - Run `imbrace ai-agent list --json` first to get Agent IDs before using other ai-agent commands.
 
+## Profiles (AWS-style multi-account)
+
+Credentials live in **named profiles** so one user can manage multiple accounts / environments (work + personal, prod + sandbox, etc.). The CLI ships with a single "default" profile out of the box; legacy single-credential configs are auto-migrated.
+
+Resolution order (highest priority first):
+1. `--profile <name>` flag (per-call override)
+2. `IMBRACE_PROFILE=<name>` env var
+3. `active_profile` saved in the config file
+4. `"default"` fallback
+
+Commands:
+- `imbrace profile list --json` — list all profiles, mark the active one
+- `imbrace profile show [name] --json` — print details (env, email, org_id, timeout, ...)
+- `imbrace profile create <name> --api-key api_xxx... [--env stable|sandbox|develop|prodv2] [--org-id <org_id>] [--base-url <url>] [--timeout <ms>] [--check-health] [--services '<json>'] [--force]` — verifies the credential before saving (`--force` skips)
+- `imbrace profile use <name>` — switch active profile
+- `imbrace profile delete <name> --yes`
+- `imbrace profile rename <from> <to>`
+
+Each profile maps 1:1 to SDK `ImbraceClientConfig`:
+
+| Profile field | SDK option | Notes |
+|---|---|---|
+| `credential` (api_*/sk-*) | `apiKey` | server-side key |
+| `credential` (JWT) | `accessToken` | OAuth/login token |
+| `env` | `env` | `stable` (default) / `sandbox` / `develop` / `prodv2` |
+| `base_url` | `baseUrl` | overrides env preset |
+| `organization_id` | `organizationId` | sent as `x-organization-id` header |
+| `timeout` | `timeout` | request timeout in ms (default 30000) |
+| `services` | `services` | `Partial<ServiceUrls>` — per-microservice URL override (advanced) |
+| `check_health` | `checkHealth` | ping `/global/health` on init (default false) |
+
+`imbrace login` / `logout` accept `--profile <name>` to target a specific profile (default: active).
+
+Example — work + sandbox setup:
+```bash
+imbrace profile create work    --api-key api_aaa... --env stable
+imbrace profile create sandbox --api-key api_bbb... --env sandbox
+imbrace profile use work             # active
+imbrace --profile sandbox workflow list   # per-call override
+IMBRACE_PROFILE=sandbox imbrace workflow list  # env override
+```
+
 ## Authentication
 
 - `imbrace login --api-key api_xxx...` — Login with API key (recommended for CI/CD and coding agents)

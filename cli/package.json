@@ -1,6 +1,6 @@
 {
   "name": "@imbrace/cli",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "CLI tool for interacting with the Imbrace CRM platform from the terminal",
   "repository": {
@@ -52,6 +52,9 @@
       },
       "ai-agent": {
         "description": "Manage AI agents — run `imbrace ai-agent --help` to see all commands"
+      },
+      "profile": {
+        "description": "Manage named profiles (AWS-style multi-account credential sets) — run `imbrace profile --help`"
       },
       "document-ai": {
         "description": "Manage Document AI agents (extract structured JSON from PDFs/images) — run `imbrace document-ai --help`"
