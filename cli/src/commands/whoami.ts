@@ -13,6 +13,7 @@ export default class Whoami extends Command {
 
   async run() {
     const { flags } = await this.parse(Whoami);
+    if (flags.profile) process.env.IMBRACE_PROFILE = flags.profile;
     const info = getAuthInfo();
 
     if (!info.credential) {

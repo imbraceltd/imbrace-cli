@@ -24,9 +24,20 @@ export abstract class BaseCommand extends Command {
     await super.init();
     // The base flag is parseable, but oclif only exposes parsed flags after
     // the subclass's own parse(). Read it from argv directly so init can act
-    // before the command body.
-    const pIdx = this.argv.findIndex((a) => a === "--profile");
-    const explicit = pIdx >= 0 && this.argv[pIdx + 1] ? this.argv[pIdx + 1] : undefined;
+    // before the command body. Supports both `--profile value` and
+    // `--profile=value` forms.
+    let explicit: string | undefined;
+    for (let i = 0; i < this.argv.length; i++) {
+      const a = this.argv[i];
+      if (a === "--profile" && this.argv[i + 1]) {
+        explicit = this.argv[i + 1];
+        break;
+      }
+      if (a.startsWith("--profile=")) {
+        explicit = a.slice("--profile=".length);
+        break;
+      }
+    }
     this.profileName = resolveProfileName(explicit);
     if (explicit) process.env.IMBRACE_PROFILE = explicit;
     await this.ensureLoggedIn();
