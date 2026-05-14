@@ -25,7 +25,10 @@ export const GW = resolveGateway();
 function authHeader(): Record<string, string> {
   const cred = getCredential();
   if (!cred) throw new Error("Not logged in. Run: imbrace login --api-key api_xxx...");
-  return cred.startsWith("api_") ? { "x-api-key": cred } : { authorization: `Bearer ${cred}` };
+  // Match the same detection logic as `lib/client.ts` — both `api_*` and
+  // legacy `sk-*` are server-side keys, anything else is a JWT/access token.
+  const isApiKey = cred.startsWith("api_") || cred.startsWith("sk-");
+  return isApiKey ? { "x-api-key": cred } : { authorization: `Bearer ${cred}` };
 }
 
 export async function gatewayFetch<T = any>(path: string, init?: RequestInit): Promise<T> {
