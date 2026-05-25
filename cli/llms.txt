@@ -70,6 +70,7 @@ IMBRACE_PROFILE=sandbox imbrace workflow list  # env override
 - `imbrace autocomplete [shell]` — Display shell completion install instructions (bash, zsh, fish, powershell)
 - `imbrace --version` — Print CLI version
 - `imbrace docs` — Print the bundled `llms.txt` (this file). Pipe to a file (`imbrace docs > llms.txt`) and feed into a coding agent's context for one-shot reference. `--path` prints just the absolute path; `--json` outputs `{ path, content }`.
+- `imbrace update` — Self-update the CLI to the latest npm version. `--check` checks without installing. `--version <x>` pins to a specific version. Available from v0.6.8 onwards.
 
 ## Data Board Commands
 
