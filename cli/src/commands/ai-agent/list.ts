@@ -19,7 +19,7 @@ export default class AiAgentList extends BaseCommand {
 
     try {
       const client = getClient();
-      const res = await client.agent.list() as any;
+      const res = await client.agent.listUseCases() as any;
       const data: any[] = (res?.data ?? res ?? []) as any[];
 
       if (flags.json) {

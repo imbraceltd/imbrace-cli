@@ -26,7 +26,7 @@ export default class AiAgentGet extends BaseCommand {
 
     try {
       const client = getClient();
-      const data = await client.agent.get(id) as any;
+      const data = await client.agent.getUseCase(id) as any;
 
       if (flags.json) {
         this.log(JSON.stringify({ ok: true, data }, null, 2));

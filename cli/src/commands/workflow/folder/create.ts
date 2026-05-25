@@ -2,7 +2,6 @@ import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { input } from "@inquirer/prompts";
 import { getClient } from "../../../lib/client.js";
-import { resolveProjectId } from "../../../lib/workflow.js";
 
 export default class WorkflowFolderCreate extends BaseCommand {
   static description = "Create a new folder for organizing workflows";
@@ -27,7 +26,7 @@ export default class WorkflowFolderCreate extends BaseCommand {
 
     try {
       const client = getClient();
-      const projectId = flags["project-id"] || (await resolveProjectId(client));
+      const projectId = flags["project-id"] || (await client.workflows.resolveProjectId());
       const data: any = await client.workflows.createFolder({ displayName: name, projectId } as any);
       const message = `Folder "${name}" created`;
 

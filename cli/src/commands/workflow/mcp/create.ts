@@ -2,7 +2,6 @@ import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { input } from "@inquirer/prompts";
 import { getClient } from "../../../lib/client.js";
-import { resolveProjectId } from "../../../lib/workflow.js";
 
 export default class WorkflowMcpCreate extends BaseCommand {
   static description = "Create a new MCP (Model Context Protocol) server. The token is shown once at creation — save it.";
@@ -27,7 +26,7 @@ export default class WorkflowMcpCreate extends BaseCommand {
 
     try {
       const client = getClient();
-      const projectId = flags["project-id"] || (await resolveProjectId(client));
+      const projectId = flags["project-id"] || (await client.workflows.resolveProjectId());
       const data: any = await client.workflows.createMcpServer({ name, projectId } as any);
       const message = `MCP server "${name}" created`;
 

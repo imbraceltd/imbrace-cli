@@ -118,7 +118,8 @@ const ASSISTANT_FIELDS = [
 
 export async function updateAgent(id: string, body: Record<string, any>) {
   const client = getClient();
-  const tpl = (await client.agent.get(id) as any)?.data ?? {};
+  const _uc = await client.agent.getUseCase(id) as any;
+  const tpl = _uc?.data ?? _uc ?? {};
   const assistantId = tpl.assistant_id;
 
   const results: any = {};
@@ -175,7 +176,8 @@ async function resolveAssistantIds(ids: string[]): Promise<string[]> {
     if (!id) continue;
     if (id.startsWith("uc_")) {
       try {
-        const tpl = (await client.agent.get(id) as any)?.data ?? {};
+        const _uc = await client.agent.getUseCase(id) as any;
+        const tpl = _uc?.data ?? _uc ?? {};
         if (tpl.assistant_id) out.push(tpl.assistant_id);
       } catch {
         // Unknown UseCase — skip with no error so partial input still works.
@@ -197,7 +199,8 @@ export async function patchOrchestratorFields(
   patch: { sub_agents?: string[]; team_leads?: string[] },
 ) {
   const client = getClient();
-  const tpl = (await client.agent.get(useCaseId) as any)?.data ?? {};
+  const _uc = await client.agent.getUseCase(useCaseId) as any;
+  const tpl = _uc?.data ?? _uc ?? {};
   const assistantId = tpl.assistant_id;
   if (!assistantId) return;
 

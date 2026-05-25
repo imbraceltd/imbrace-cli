@@ -26,7 +26,7 @@ export default class OrchestratorGet extends BaseCommand {
 
     try {
       const client = getClient();
-      const tpl = (await client.agent.get(id) as any)?.data ?? {};
+      const tpl = (await client.agent.getUseCase(id) as any) ?? {};
       // sub_agents / team_leads live on the assistant, not the use case.
       // Fetch the assistant directly to get the canonical state.
       const assistant = tpl.assistant_id
