@@ -19,7 +19,7 @@ export default class OrchestratorList extends BaseCommand {
 
     try {
       const client = getClient();
-      const res = await client.agent.list() as any;
+      const res = await client.agent.listUseCases() as any;
       const all: any[] = (res?.data ?? res ?? []) as any[];
       // Webapp identifies orchestrators via agent_type === "team_lead"
       // (see new-frontend/.../useAIAssistantFormHook.tsx). Filter client-side.

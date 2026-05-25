@@ -2,7 +2,6 @@ import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../base-command.js";
 import { input } from "@inquirer/prompts";
 import { getClient } from "../../lib/client.js";
-import { resolveProjectId } from "../../lib/workflow.js";
 
 export default class WorkflowCreate extends BaseCommand {
   static description = "Create a new workflow (empty — add nodes via UI builder or `workflow node add`)";
@@ -29,7 +28,7 @@ export default class WorkflowCreate extends BaseCommand {
 
     try {
       const client = getClient();
-      const projectId = flags["project-id"] || (await resolveProjectId(client));
+      const projectId = flags["project-id"] || (await client.workflows.resolveProjectId());
       const createBody: Record<string, any> = { displayName: name, projectId };
       if (flags["folder-id"]) createBody.folderId = flags["folder-id"];
       const data: any = await client.workflows.createFlow(createBody as any);

@@ -31,7 +31,7 @@ export default class AiAgentDelete extends BaseCommand {
 
     try {
       const client = getClient();
-      await client.agent.delete(id);
+      await client.agent.deleteUseCase(id);
       const message = "AI Agent deleted";
 
       if (flags.json) {

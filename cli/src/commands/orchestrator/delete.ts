@@ -30,7 +30,7 @@ export default class OrchestratorDelete extends BaseCommand {
 
     try {
       const client = getClient();
-      await client.agent.delete(id);
+      await client.agent.deleteUseCase(id);
       const message = "Orchestrator deleted";
 
       if (flags.json) {

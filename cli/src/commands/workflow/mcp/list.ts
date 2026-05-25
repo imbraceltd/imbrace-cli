@@ -1,7 +1,6 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { getClient } from "../../../lib/client.js";
-import { resolveProjectId } from "../../../lib/workflow.js";
 
 export default class WorkflowMcpList extends BaseCommand {
   static description = "List MCP (Model Context Protocol) servers for the project";
@@ -20,8 +19,8 @@ export default class WorkflowMcpList extends BaseCommand {
 
     try {
       const client = getClient();
-      const projectId = await resolveProjectId(client);
-      const res = await client.workflows.listMcpServers(projectId) as any;
+      // SDK v1.1.0: listMcpServers() auto-resolves projectId internally
+      const res = await client.workflows.listMcpServers() as any;
       const data: any[] = res?.data ?? [];
 
       if (flags.json) {

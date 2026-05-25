@@ -1,7 +1,7 @@
 import { Flags } from "@oclif/core";
 import { BaseCommand } from "../../../base-command.js";
 import { getClient } from "../../../lib/client.js";
-import { normalizePieceName, resolveProjectId } from "../../../lib/workflow.js";
+import { normalizePieceName } from "../../../lib/workflow.js";
 
 export default class WorkflowConnCreate extends BaseCommand {
   static description = "Create a connection (save credential for an external service)";
@@ -47,7 +47,7 @@ export default class WorkflowConnCreate extends BaseCommand {
     try {
       const client = getClient();
       const pieceName = normalizePieceName(flags.piece);
-      const projectId = await resolveProjectId(client);
+      const projectId = await client.workflows.resolveProjectId();
       const externalId = flags["external-id"] || `cli_${Date.now()}`;
 
       // Activepieces requires `value.type` to match the connection type.
