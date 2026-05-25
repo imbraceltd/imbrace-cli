@@ -1,6 +1,6 @@
 {
   "name": "@imbrace/cli",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "type": "module",
   "description": "CLI tool for interacting with the Imbrace CRM platform from the terminal",
   "repository": {
