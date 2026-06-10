@@ -24,7 +24,7 @@
     "prepack": "oclif manifest"
   },
   "dependencies": {
-    "@imbrace/sdk": "^1.1.0",
+    "@imbrace/sdk": "^1.2.0",
     "@inquirer/prompts": "^7.10.1",
     "@oclif/core": "^4.2.0",
     "@oclif/plugin-autocomplete": "^3.2.0",

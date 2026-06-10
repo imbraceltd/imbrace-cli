@@ -151,17 +151,49 @@ export default class Login extends Command {
       this.log(`📧 Logging in as ${email} for profile "${profile}"...`);
       try {
         const client = new ImbraceClient(buildOpts({}));
-        await client.login(email, pass);
+        // SDK 1.1.x splits login into two phases: login() stores a short-lived
+        // `login_acc_` token and returns the user's orgs; selectOrganization()
+        // then swaps it for an org-scoped `acc_` token. We must complete both —
+        // saving the login_acc_ token directly makes every later call 401.
+        const res = await client.login(email, pass);
+        // Normalize org shape across SDK versions: ≥1.2 returns
+        // { organization_id, display_name }; earlier returned { id, name }.
+        const orgs = (Array.isArray((res as any).organizations) ? (res as any).organizations : [])
+          .map((o: any) => ({ id: o.organization_id ?? o.id, name: o.display_name ?? o.name }))
+          .filter((o: any) => o.id) as Array<{ id: string; name: string }>;
+
+        let orgId = flags["org-id"];
+        if (!orgId) {
+          if (orgs.length === 1) {
+            orgId = orgs[0].id;
+          } else if (orgs.length > 1) {
+            if (!isTTY) {
+              this.error(
+                `Account belongs to ${orgs.length} organizations — pass --org-id <id>:\n` +
+                  orgs.map((o) => `  ${o.id}  ${o.name}`).join("\n"),
+              );
+            }
+            orgId = await select({
+              message: "Select organization:",
+              choices: orgs.map((o) => ({ name: `${o.name} (${o.id})`, value: o.id })),
+            });
+          } else {
+            this.error("Login succeeded but no organizations were returned. Pass --org-id <id> explicitly.");
+          }
+        }
+
+        await client.selectOrganization(orgId!);
         const token = (client as any).tokenManager?.getToken();
-        if (!token) this.error("Login succeeded but no token was issued");
+        if (!token) this.error("Login succeeded but no access token was issued after selecting the organization");
         setProfile(profile, {
           credential: token,
           method: "password",
           email,
           ...profilePatch,
+          organization_id: orgId,
         });
         resetClient();
-        this.log(`\n✅ Logged in as ${email} (profile: ${profile})\n`);
+        this.log(`\n✅ Logged in as ${email} (profile: ${profile})\n   Org: ${orgId}${envFlag ? `\n   Env: ${envFlag}` : ""}\n`);
       } catch (error: any) {
         this.error(`Login failed: ${error?.message}`);
       }

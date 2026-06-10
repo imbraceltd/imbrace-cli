@@ -5,7 +5,7 @@ type Variables = { imbraceClient: ImbraceClient; credential: string };
 
 const aiAgentRoutes = new Hono<{ Variables: Variables }>();
 
-const GW = "https://app-gatewayv2.imbrace.co";
+const GW = process.env.IMBRACE_GATEWAY_URL || "https://app-gatewayv2.imbrace.co";
 
 // GET /ai-agent/list
 aiAgentRoutes.get("/list", async (c) => {
