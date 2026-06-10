@@ -2,7 +2,7 @@ import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { ImbraceClient } from "@imbrace/sdk";
 
-const BASE_URL = "https://app-gatewayv2.imbrace.co";
+const BASE_URL = process.env.IMBRACE_GATEWAY_URL || "https://app-gatewayv2.imbrace.co";
 
 /**
  * Authentication middleware using @imbrace/sdk

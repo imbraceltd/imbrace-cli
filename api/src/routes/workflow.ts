@@ -5,7 +5,7 @@ type Variables = { imbraceClient: ImbraceClient; credential: string };
 
 const workflowRoutes = new Hono<{ Variables: Variables }>();
 
-const GW = "https://app-gatewayv2.imbrace.co";
+const GW = process.env.IMBRACE_GATEWAY_URL || "https://app-gatewayv2.imbrace.co";
 
 // Resolve a projectId by reusing the project of any existing flow.
 async function resolveProjectId(client: ImbraceClient): Promise<string> {
@@ -155,7 +155,9 @@ workflowRoutes.post("/create", async (c) => {
       projectId,
     };
     if (body.folderId) createBody.folderId = body.folderId;
-    const data = await client.workflows.createFlow(createBody);
+    // createFlow's typed surface only accepts { displayName, projectId }; we
+    // also forward folderId (accepted by the engine), so cast past the narrow type.
+    const data = await client.workflows.createFlow(createBody as any);
     return c.json({ ok: true, message: `Workflow "${body.name}" created`, data });
   } catch (error: any) {
     return c.json({ ok: false, message: error?.message }, 500);

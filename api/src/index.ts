@@ -46,7 +46,7 @@ app.notFound((c) =>
 
 // ──── Error handler ────
 app.onError((err, c) =>
-  c.json({ ok: false, message: err.message }, err.status || 500)
+  c.json({ ok: false, message: err.message }, (err as any).status || 500)
 );
 
 // ──── Start ────
